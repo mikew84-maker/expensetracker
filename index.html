@@ -66,11 +66,8 @@ button.sm{padding:5px 10px;font-size:12px;}
 button:disabled{opacity:.5;cursor:default;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 /* Wide tables (many columns, or a free-text column like Description) can end up needing more
-   width than their grid column has to give — without this, they silently overflow past the
-   right edge of .invoice-editor-center and visually vanish under the sticky right-rail cards
-   (Add expense / Ask Claude etc.), which is exactly what happened with the Expenses table once
-   descriptions got long and rows piled up. This keeps any overflow contained to the table's own
-   horizontal scrollbar instead. */
+   width than their container has to give — this keeps any overflow contained to the table's
+   own horizontal scrollbar instead of silently spilling past the edge of the page. */
 .table-wrap{overflow-x:auto;}
 #invoiceItemsPicker{overflow-x:auto;}
 /* Truncated, click-to-expand text for a long free-text cell (e.g. expense descriptions) — shows
@@ -596,53 +593,40 @@ If you have any questions regarding these line items, please let me know.</texta
 
   <!-- TIME LOG -->
   <div class="panel" data-panel="time">
-    <div class="invoice-editor-grid">
-      <div class="invoice-editor-center">
-        <div class="card compact">
-          <div class="toolbar"><div class="section-title" style="margin:0;">Filter entries</div></div>
-          <div class="row">
-            <div class="field sm"><label>Client</label><select id="tf_client" onchange="onTimeFilterClientChange()"><option value="">All clients</option></select></div>
-            <div class="field sm"><label>Project</label><select id="tf_project" onchange="tf_change()"><option value="">All projects</option></select></div>
-            <div class="field sm"><label>Type</label><select id="tf_type" onchange="tf_change()">
-              <option value="">All types</option><option value="work">Work day</option><option value="travel">Travel day</option>
-            </select></div>
-            <div class="field sm"><label>Status</label><select id="tf_invoiced" onchange="tf_change()">
-              <option value="">All</option><option value="no">Not invoiced</option><option value="yes">Invoiced</option>
-            </select></div>
-            <div class="field sm"><label>From date</label><input id="tf_dateFrom" type="date" onchange="tf_change()"></div>
-            <div class="field sm"><label>To date</label><input id="tf_dateTo" type="date" onchange="tf_change()"></div>
-            <button class="sm" style="align-self:flex-end;" onclick="tf_change()">Apply filters</button>
-            <button class="ghost sm" style="align-self:flex-end;" onclick="clearTimeFilters()">Clear filters</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="toolbar"><div class="section-title" style="margin:0;">Logged days</div></div>
-          <p class="small muted" style="margin-top:-4px;">Every field here is editable directly — changes save immediately and update any invoice these days are tied to. Use the filters above to narrow this down as it grows.</p>
-          <div class="toolbar">
-            <span class="small muted" id="timeSelectedCount">Check rows below to delete them in bulk.</span>
-            <div class="export-actions">
-              <button class="add-trigger-btn sm" onclick="openActionModal('modal_time')">+ Add a Day</button>
-              <button class="secondary sm" onclick="deleteSelectedTime()">Delete checked rows</button>
-              <button class="danger" onclick="clearAllTime()">Clear all entries</button>
-            </div>
-          </div>
-          <div class="table-wrap"><table id="timeTable"><thead><tr><th><input type="checkbox" id="tf_selectAll" onchange="toggleAllTimeSelected(this)"></th><th>Status</th><th>Date</th><th>Project</th><th>Type</th><th>In</th><th>Out</th><th>Hours</th><th>Notes</th><th>Inv.</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div class="empty" id="timeEmpty" style="display:none;">No time logged yet.</div>
-          <div id="timePagination"></div>
+    <div class="card compact">
+      <div class="toolbar"><div class="section-title" style="margin:0;">Filter entries</div></div>
+      <div class="row">
+        <div class="field sm"><label>Client</label><select id="tf_client" onchange="onTimeFilterClientChange()"><option value="">All clients</option></select></div>
+        <div class="field sm"><label>Project</label><select id="tf_project" onchange="tf_change()"><option value="">All projects</option></select></div>
+        <div class="field sm"><label>Type</label><select id="tf_type" onchange="tf_change()">
+          <option value="">All types</option><option value="work">Work day</option><option value="travel">Travel day</option>
+        </select></div>
+        <div class="field sm"><label>Status</label><select id="tf_invoiced" onchange="tf_change()">
+          <option value="">All</option><option value="no">Not invoiced</option><option value="yes">Invoiced</option>
+        </select></div>
+        <div class="field sm"><label>From date</label><input id="tf_dateFrom" type="date" onchange="tf_change()"></div>
+        <div class="field sm"><label>To date</label><input id="tf_dateTo" type="date" onchange="tf_change()"></div>
+        <button class="sm" style="align-self:flex-end;" onclick="tf_change()">Apply filters</button>
+        <button class="ghost sm" style="align-self:flex-end;" onclick="clearTimeFilters()">Clear filters</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toolbar"><div class="section-title" style="margin:0;">Logged days</div></div>
+      <p class="small muted" style="margin-top:-4px;">Every field here is editable directly — changes save immediately and update any invoice these days are tied to. Use the filters above to narrow this down as it grows.</p>
+      <div class="toolbar">
+        <span class="small muted" id="timeSelectedCount">Check rows below to delete them in bulk.</span>
+        <div class="export-actions">
+          <button class="add-trigger-btn sm" onclick="openActionModal('modal_time')">+ Add a Day</button>
+          <input id="drivet_localFile" type="file" accept=".csv,.xlsx,.xls" onchange="readLocalTimeFile(this)" style="display:none;">
+          <button class="secondary sm" onclick="document.getElementById('drivet_localFile').value='';document.getElementById('drivet_localFile').click()">Import CSV</button>
+          <button class="secondary sm" onclick="deleteSelectedTime()">Delete checked rows</button>
+          <button class="danger" onclick="clearAllTime()">Clear all entries</button>
         </div>
       </div>
-
-      <div class="invoice-editor-right">
-        <div class="card accent">
-          <div class="section-title" style="margin-bottom:6px;">Ask Claude</div>
-          <p class="small muted" style="margin-top:-4px;">This page can't reach your calendar or email on its own. Type what you want pulled in, hit "Copy request," then paste it into your chat with Claude — it'll fetch the details and drop the days in here for you.</p>
-          <textarea id="askClaude_time" rows="2" placeholder='e.g. &quot;Add my LIV Golf UK trip, Aug 12–17, as travel/work days&quot;'></textarea>
-          <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_time')">Copy request</button>
-          <span id="askClaude_time_status" class="status-msg"></span>
-          <div class="field" style="margin-top:8px;"><label>...or upload a .csv (Excel: save as .csv first)</label><input id="drivet_localFile" type="file" accept=".csv,.xlsx,.xls" onchange="readLocalTimeFile(this)"></div>
-          <div id="drivet_dates"></div>
-        </div>
-      </div>
+      <div id="drivet_dates"></div>
+      <div class="table-wrap"><table id="timeTable"><thead><tr><th><input type="checkbox" id="tf_selectAll" onchange="toggleAllTimeSelected(this)"></th><th>Status</th><th>Date</th><th>Project</th><th>Type</th><th>In</th><th>Out</th><th>Hours</th><th>Notes</th><th>Inv.</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="empty" id="timeEmpty" style="display:none;">No time logged yet.</div>
+      <div id="timePagination"></div>
     </div>
 
     <div class="action-modal-overlay" id="modal_time" onclick="if(event.target===this) closeActionModal('modal_time')">
@@ -679,58 +663,44 @@ If you have any questions regarding these line items, please let me know.</texta
 
   <!-- EXPENSES -->
   <div class="panel" data-panel="expenses">
-    <div class="invoice-editor-grid">
-      <div class="invoice-editor-center">
-        <div class="card compact">
-          <div class="toolbar"><div class="section-title" style="margin:0;">Filter entries</div></div>
-          <div class="row">
-            <div class="field sm"><label>Filter: Client</label><select id="ef_client" onchange="onExpenseFilterClientChange()"><option value="">All clients</option></select></div>
-            <div class="field sm"><label>Filter: Project</label><select id="ef_project" onchange="ef_change()"><option value="">All projects</option></select></div>
-            <div class="field sm"><label>Filter: Category</label><select id="ef_category" onchange="ef_change()">
-              <option value="">All categories</option>
-              <option>Flight</option><option>Baggage fee</option><option>Uber/Lyft</option>
-              <option>Ground transport</option><option>Hotel</option><option>Meals</option>
-              <option>Visa fee</option><option>Supplies</option><option>Other</option>
-            </select></div>
-            <div class="field sm"><label>Filter: Status</label><select id="ef_invoiced" onchange="ef_change()">
-              <option value="">All</option><option value="no">Not invoiced</option><option value="yes">Invoiced</option>
-            </select></div>
-            <div class="field sm"><label>Filter: Classification</label><select id="ef_billable" onchange="ef_change()">
-              <option value="">All</option><option value="billable">Billable</option><option value="business">Business (non-billed)</option><option value="personal">Personal</option><option value="unknown">Unknown — needs review</option>
-            </select></div>
-            <div class="field sm"><label>From date</label><input id="ef_dateFrom" type="date" onchange="ef_change()"></div>
-            <div class="field sm"><label>To date</label><input id="ef_dateTo" type="date" onchange="ef_change()"></div>
-            <button class="sm" style="align-self:flex-end;" onclick="ef_change()">Apply filters</button>
-            <button class="ghost sm" style="align-self:flex-end;" onclick="clearExpenseFilters()">Clear filters</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="toolbar"><div class="section-title" style="margin:0;">Expenses</div></div>
-          <p class="small muted" style="margin-top:-4px;">Use the filters above to narrow this down as it grows.</p>
-          <div class="toolbar">
-            <span class="small muted" id="expenseSelectedCount">Check rows below to delete them in bulk.</span>
-            <div class="export-actions">
-              <button class="add-trigger-btn sm" onclick="openActionModal('modal_receipt')">📸 Upload Receipt</button>
-              <button class="add-trigger-btn sm" onclick="openActionModal('modal_expense')">+ Add Expense</button>
-              <button class="secondary sm" onclick="deleteSelectedExpenses()">Delete checked rows</button>
-              <button class="danger" onclick="clearAllExpenses()">Clear all expenses</button>
-            </div>
-          </div>
-          <div class="table-wrap"><table id="expenseTable"><thead><tr><th><input type="checkbox" id="ef_selectAll" onchange="toggleAllExpensesSelected(this)"></th><th>Status</th><th>Date</th><th>Project</th><th>Category</th><th>Description</th><th class="right">Amount</th><th>Classification</th><th>Receipt</th><th>Inv.</th><th title="Show this description as a small footnote on the invoice line item">Inv Des</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div class="empty" id="expenseEmpty" style="display:none;">No expenses logged yet.</div>
-          <div id="expensePagination"></div>
+    <div class="card compact">
+      <div class="toolbar"><div class="section-title" style="margin:0;">Filter entries</div></div>
+      <div class="row">
+        <div class="field sm"><label>Filter: Client</label><select id="ef_client" onchange="onExpenseFilterClientChange()"><option value="">All clients</option></select></div>
+        <div class="field sm"><label>Filter: Project</label><select id="ef_project" onchange="ef_change()"><option value="">All projects</option></select></div>
+        <div class="field sm"><label>Filter: Category</label><select id="ef_category" onchange="ef_change()">
+          <option value="">All categories</option>
+          <option>Flight</option><option>Baggage fee</option><option>Uber/Lyft</option>
+          <option>Ground transport</option><option>Hotel</option><option>Meals</option>
+          <option>Visa fee</option><option>Supplies</option><option>Other</option>
+        </select></div>
+        <div class="field sm"><label>Filter: Status</label><select id="ef_invoiced" onchange="ef_change()">
+          <option value="">All</option><option value="no">Not invoiced</option><option value="yes">Invoiced</option>
+        </select></div>
+        <div class="field sm"><label>Filter: Classification</label><select id="ef_billable" onchange="ef_change()">
+          <option value="">All</option><option value="billable">Billable</option><option value="business">Business (non-billed)</option><option value="personal">Personal</option><option value="unknown">Unknown — needs review</option>
+        </select></div>
+        <div class="field sm"><label>From date</label><input id="ef_dateFrom" type="date" onchange="ef_change()"></div>
+        <div class="field sm"><label>To date</label><input id="ef_dateTo" type="date" onchange="ef_change()"></div>
+        <button class="sm" style="align-self:flex-end;" onclick="ef_change()">Apply filters</button>
+        <button class="ghost sm" style="align-self:flex-end;" onclick="clearExpenseFilters()">Clear filters</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toolbar"><div class="section-title" style="margin:0;">Expenses</div></div>
+      <p class="small muted" style="margin-top:-4px;">Use the filters above to narrow this down as it grows.</p>
+      <div class="toolbar">
+        <span class="small muted" id="expenseSelectedCount">Check rows below to delete them in bulk.</span>
+        <div class="export-actions">
+          <button class="add-trigger-btn sm" onclick="openActionModal('modal_receipt')">📸 Upload Receipt</button>
+          <button class="add-trigger-btn sm" onclick="openActionModal('modal_expense')">+ Add Expense</button>
+          <button class="secondary sm" onclick="deleteSelectedExpenses()">Delete checked rows</button>
+          <button class="danger" onclick="clearAllExpenses()">Clear all expenses</button>
         </div>
       </div>
-
-      <div class="invoice-editor-right">
-        <div class="card accent">
-          <div class="section-title">Ask Claude</div>
-          <p class="small muted" style="margin-top:-4px;">This page can't reach Drive or Gmail on its own. Type what you want pulled in, hit "Copy request," then paste it into your chat with Claude — it'll fetch the details and the expenses will show up here, ready to review.</p>
-          <textarea id="askClaude_expense" rows="2" placeholder='e.g. "Pull my Amazon orders from the last 90 days" or "find my Delta flight receipt for the LIV Golf trip"'></textarea>
-          <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_expense')">Copy request</button>
-          <span id="askClaude_expense_status" class="status-msg"></span>
-        </div>
-      </div>
+      <div class="table-wrap"><table id="expenseTable"><thead><tr><th><input type="checkbox" id="ef_selectAll" onchange="toggleAllExpensesSelected(this)"></th><th>Status</th><th>Date</th><th>Project</th><th>Category</th><th>Description</th><th class="right">Amount</th><th>Classification</th><th>Receipt</th><th>Inv.</th><th title="Show this description as a small footnote on the invoice line item">Inv Des</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="empty" id="expenseEmpty" style="display:none;">No expenses logged yet.</div>
+      <div id="expensePagination"></div>
     </div>
 
     <div class="action-modal-overlay" id="modal_receipt" onclick="if(event.target===this) closeActionModal('modal_receipt')">
@@ -789,34 +759,30 @@ If you have any questions regarding these line items, please let me know.</texta
 
   <!-- MILEAGE -->
   <div class="panel" data-panel="mileage">
-    <div class="invoice-editor-grid">
-      <div class="invoice-editor-center">
-        <div class="card compact">
-          <div class="toolbar">
-            <div class="section-title" style="margin:0;">Filter entries</div>
-            <span class="small muted" id="mileageDeductionTotal"></span>
-          </div>
-          <div class="row">
-            <div class="field sm"><label>Filter: Year</label><select id="mf_year" onchange="mf_change()"><option value="">All years</option></select></div>
-            <div class="field sm"><label>Filter: Project</label><select id="mf_project" onchange="mf_change()"><option value="">All projects</option></select></div>
-            <button class="sm" style="align-self:flex-end;" onclick="mf_change()">Apply filters</button>
-            <button class="ghost sm" style="align-self:flex-end;" onclick="clearMileageFilters()">Clear filters</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="toolbar"><div class="section-title" style="margin:0;">Mileage log</div></div>
-          <div class="toolbar">
-            <span class="small muted" id="mileageSelectedCount">Check rows below to delete them in bulk.</span>
-            <div class="export-actions">
-              <button class="add-trigger-btn sm" onclick="openActionModal('modal_mileage')">+ Log a Trip</button>
-              <button class="secondary sm" onclick="deleteSelectedMileage()">Delete checked rows</button>
-              <button class="danger" onclick="clearAllMileage()">Clear all trips</button>
-            </div>
-          </div>
-          <div class="table-wrap"><table id="mileageTable"><thead><tr><th><input type="checkbox" id="mf_selectAll" onchange="toggleAllMileageSelected(this)"></th><th>Date</th><th>Project</th><th>Route</th><th>Purpose</th><th class="right">Miles</th><th class="right">Deduction</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div class="empty" id="mileageEmpty" style="display:none;">No trips logged yet.</div>
+    <div class="card compact">
+      <div class="toolbar">
+        <div class="section-title" style="margin:0;">Filter entries</div>
+        <span class="small muted" id="mileageDeductionTotal"></span>
+      </div>
+      <div class="row">
+        <div class="field sm"><label>Filter: Year</label><select id="mf_year" onchange="mf_change()"><option value="">All years</option></select></div>
+        <div class="field sm"><label>Filter: Project</label><select id="mf_project" onchange="mf_change()"><option value="">All projects</option></select></div>
+        <button class="sm" style="align-self:flex-end;" onclick="mf_change()">Apply filters</button>
+        <button class="ghost sm" style="align-self:flex-end;" onclick="clearMileageFilters()">Clear filters</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toolbar"><div class="section-title" style="margin:0;">Mileage log</div></div>
+      <div class="toolbar">
+        <span class="small muted" id="mileageSelectedCount">Check rows below to delete them in bulk.</span>
+        <div class="export-actions">
+          <button class="add-trigger-btn sm" onclick="openActionModal('modal_mileage')">+ Log a Trip</button>
+          <button class="secondary sm" onclick="deleteSelectedMileage()">Delete checked rows</button>
+          <button class="danger" onclick="clearAllMileage()">Clear all trips</button>
         </div>
       </div>
+      <div class="table-wrap"><table id="mileageTable"><thead><tr><th><input type="checkbox" id="mf_selectAll" onchange="toggleAllMileageSelected(this)"></th><th>Date</th><th>Project</th><th>Route</th><th>Purpose</th><th class="right">Miles</th><th class="right">Deduction</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="empty" id="mileageEmpty" style="display:none;">No trips logged yet.</div>
     </div>
 
     <div class="action-modal-overlay" id="modal_mileage" onclick="if(event.target===this) closeActionModal('modal_mileage')">
@@ -1063,33 +1029,22 @@ If you have any questions regarding these line items, please let me know.</texta
         <div id="invoicesPagination"></div>
       </div>
 
-      <div class="card accent" id="startInvoiceCard">
-        <div class="section-title">Start a new invoice</div>
-
-        <p class="small muted" style="margin-top:-4px;">Already have a project with logged days or expenses (including anything just imported)? Jump straight into an invoice for it — everything not yet invoiced comes pre-selected, ready to review and adjust.</p>
-        <div class="row">
-          <div class="field"><label>Existing project</label><select id="start_existingProject"></select></div>
-          <button class="secondary" style="align-self:flex-end;" onclick="startInvoiceForExistingProject()">Generate invoice</button>
-        </div>
-        <p class="small muted" id="noProjectsHint" style="display:none;">No projects yet — add one, or add a client first on the "Clients" tab.</p>
-
-        <div class="add-trigger-row" style="margin-top:14px;margin-bottom:0;">
-          <button class="secondary add-trigger-btn" onclick="openActionModal('modal_project')">+ New Project</button>
-        </div>
+      <div class="add-trigger-row" style="margin-top:10px;">
+        <button class="add-trigger-btn" onclick="openActionModal('modal_project')">+ Create Invoice</button>
       </div>
 
       <div class="action-modal-overlay" id="modal_project" onclick="if(event.target===this) closeActionModal('modal_project')">
-        <div class="action-modal">
+        <div class="action-modal wide">
           <button class="modal-close" onclick="closeActionModal('modal_project')">&times;</button>
-          <div class="action-modal-header"><span class="action-modal-icon">📁</span><h3>Start something new</h3></div>
-          <p class="small muted" style="margin-top:-4px;">Want it pre-filled from a calendar event or an email? Type the request below, hit "Copy request," and paste it into your chat with Claude — it'll pull the details and drop them in here for you. Or fill it in manually below.</p>
+          <div class="action-modal-header"><span class="action-modal-icon">🧾</span><h3>Create an invoice</h3></div>
+          <p class="small muted" style="margin-top:-4px;">Already have a project with logged days or expenses (including anything just imported)? Jump straight into an invoice for it — everything not yet invoiced comes pre-selected, ready to review and adjust.</p>
           <div class="row">
-            <div class="field"><textarea id="askClaude_invoice" rows="2" placeholder='e.g. "Add my LIV Golf Mexico City trip, Aug 5–10, for Van Wagner"'></textarea></div>
+            <div class="field"><label>Existing project</label><select id="start_existingProject"></select></div>
+            <button class="secondary" style="align-self:flex-end;" onclick="startInvoiceForExistingProject()">Generate invoice</button>
           </div>
-          <div class="row" style="margin-top:-4px;">
-            <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_invoice')">Copy request</button>
-            <span id="askClaude_invoice_status" class="status-msg"></span>
-          </div>
+          <p class="small muted" id="noProjectsHint" style="display:none;">No projects yet — add one below, or add a client first on the "Clients" tab.</p>
+
+          <div class="section-title" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px;">Or start something new</div>
           <div class="row">
             <div class="field"><label>Name this project/invoice</label><input id="start_manualName" placeholder="e.g. Riyadh onsite engineer"></div>
             <div class="field"><label>Client</label><select id="start_client"></select></div>
@@ -2148,31 +2103,6 @@ function checkReceiptRenders(dataUrl){
   img.src = dataUrl;
 }
 
-// ---------- "Ask Claude" cards ----------
-// This saved page can't reliably call Claude or connector tools on its own (confirmed —
-// window.cowork's tool bridge isn't available in this environment). So instead of a live
-// button, these cards let the user type a request and copy it — they paste it into the actual
-// chat with Claude, which fetches the data with its own tools and writes the results back into
-// this page (via the pendingImport mechanism) the next time it's opened.
-function copyAskClaudePrompt(textareaId){
-  const ta = document.getElementById(textareaId);
-  const statusId = textareaId+'_status';
-  const text = (ta.value||'').trim();
-  if(!text){ setStatus(statusId, 'Type a request first.', true, false); return; }
-  const done = (ok)=>{
-    setStatus(statusId, ok ? 'Copied — paste it into your chat with Claude.' : 'Could not copy automatically — select the text above and copy it yourself.', !ok, ok);
-  };
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>done(true)).catch(()=>{
-      ta.select();
-      try{ done(document.execCommand('copy')); }catch(e){ done(false); }
-    });
-  } else {
-    ta.select();
-    try{ done(document.execCommand('copy')); }catch(e){ done(false); }
-  }
-}
-
 // ---------- Pagination (keeps long logs from becoming an endless scroll) ----------
 const PAGE_SIZE = 20;
 function clampPage(page, totalItems, pageSize){
@@ -3200,6 +3130,7 @@ function startInvoiceForProject(projectId){
   document.getElementById('i_number').value = '';
   document.getElementById('i_date').value = '';
   onInvoiceProjectChange();
+  closeActionModal('modal_project');
 }
 function startInvoiceForExistingProject(){
   const projectId = document.getElementById('start_existingProject').value;
@@ -3917,11 +3848,7 @@ function stageReceiptForReview(inputId){
     save(); render();
     if(unrendered) showGlobalInfo("This image doesn't render in the browser (common with iPhone HEIC photos) — it's stored as-is, but re-save it as a JPG/PNG for a working preview.");
     fileInput.value = '';
-    // Pre-fill the existing "Ask Claude" copy-request box right below so finishing this is a
-    // single extra tap, not a from-scratch typed request.
-    const ta = document.getElementById('askClaude_expense');
-    if(ta) ta.value = `I just staged a receipt photo in the tracker (dated ${today}${projectId ? ', project attached' : ''}) — read it, fill in the real vendor/amount/date/category, and file the photo into the right Drive folder.`;
-    setStatus('e_quickReceipt_status','Receipt staged below as "Needs review." Copy the request in the "Ask Claude" box and paste it into a chat with Claude to finish it.', false, true);
+    setStatus('e_quickReceipt_status','Receipt staged below as "Needs review" — ask Claude in a chat to read it and fill in the real vendor/amount/date/category.', false, true);
   }).catch(msg => setStatus('e_quickReceipt_status', msg, true));
 }
 function deleteExpense(id){ DATA.expenses = DATA.expenses.filter(e=>e.id!==id); save(); render(); }
