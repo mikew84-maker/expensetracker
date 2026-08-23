@@ -213,6 +213,8 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 .auth-card .status{margin-top:12px;font-size:12px;min-height:16px;}
 .auth-card .status.err{color:#fca5a5;}
 .auth-card .status.ok{color:var(--good);}
+@keyframes flashHighlight{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px var(--accent);}}
+.flash-highlight{animation:flashHighlight 1.6s ease-in-out;}
 </style>
 </head>
 <body>
@@ -389,6 +391,7 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
   <h1>BusinessExpenseTracker</h1>
   <p class="sub" id="syncStatusSub">Synced to the cloud</p>
   <button id="lockAppBtn" class="ghost sm" style="display:none;width:100%;margin-bottom:10px;" onclick="lockAppNow()">🔒 Lock app</button>
+  <button class="sm" style="width:100%;margin-bottom:10px;" onclick="goToQuickReceipt()">📸 Quick Receipt</button>
   <button class="ghost sm" style="width:100%;margin-bottom:10px;" onclick="authSignOut()">Sign out</button>
   <div class="tabs">
     <div class="tab-group-label">Workflow</div>
@@ -685,13 +688,15 @@ If you have any questions regarding these line items, please let me know.</texta
       </div>
 
       <div class="invoice-editor-right">
-        <div class="card accent">
+        <div class="card accent" id="quickReceiptCard">
           <div class="section-title">Upload receipt</div>
           <p class="small muted" style="margin-top:-4px;">Snap a photo or pick a file — no need to fill anything in first. It's staged below as "Needs review" with the image attached; ask Claude in a chat (phone or desktop) to read it and it'll fill in the real vendor, amount, and category, and file the photo in Drive.</p>
-          <div class="row">
-            <div class="field"><label>Photo or file</label><input id="e_quickReceiptFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" capture="environment"></div>
+          <input id="e_quickReceiptFile_camera" type="file" accept="image/*" capture="environment" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_camera')">
+          <input id="e_quickReceiptFile_library" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_library')">
+          <div class="row" style="gap:8px;">
+            <button type="button" onclick="document.getElementById('e_quickReceiptFile_camera').value='';document.getElementById('e_quickReceiptFile_camera').click()">📷 Take Photo</button>
+            <button type="button" class="secondary" onclick="document.getElementById('e_quickReceiptFile_library').value='';document.getElementById('e_quickReceiptFile_library').click()">🖼 Choose from Library</button>
           </div>
-          <button onclick="stageReceiptForReview()">Stage receipt for review</button>
           <span id="e_quickReceipt_status" class="status-msg"></span>
         </div>
 
@@ -3095,6 +3100,16 @@ function goToPanel(tabName){
   const panel = document.querySelector(`.panel[data-panel="${tabName}"]`);
   if(panel) panel.classList.add('active');
 }
+// One-tap path from the sidebar (mobile-friendly) straight to the receipt-capture card, without
+// making anyone hunt through the Expenses tab's filters/table first to find it.
+function goToQuickReceipt(){
+  goToPanel('expenses');
+  const card = document.getElementById('quickReceiptCard');
+  if(!card) return;
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+  card.classList.add('flash-highlight');
+  setTimeout(()=>card.classList.remove('flash-highlight'), 1600);
+}
 // Opens the invoice editor for a project with every not-yet-invoiced day/expense pre-selected
 // (that's the existing default behavior of the picker whenever it switches projects) — the
 // invoice number, date, and all rates are still fully editable from there, same as any invoice.
@@ -3797,10 +3812,11 @@ function addExpense(){
 // photo, sort it out later" instead of making you transcribe the receipt by hand first. Left as
 // classification 'unknown' + needsReceiptReview:true so it surfaces via the existing "Unknown —
 // needs review" filter, and renderExpenses() gives it a visual flag on top of that.
-function stageReceiptForReview(){
-  const fileInput = document.getElementById('e_quickReceiptFile');
+function stageReceiptForReview(inputId){
+  const fileInput = document.getElementById(inputId || 'e_quickReceiptFile_library');
   const file = fileInput.files && fileInput.files[0];
   if(!file){ setStatus('e_quickReceipt_status','Pick a photo or file first.', true); return; }
+  setStatus('e_quickReceipt_status','Uploading…');
   processReceiptFile(file).then(({dataUrl, name, unrendered}) => {
     const today = new Date().toISOString().slice(0,10);
     const projectId = document.getElementById('e_project').value || null;
@@ -3959,6 +3975,26 @@ function removeExpenseReceipt(id){
   e.receipt = null; e.receiptName = null;
   save(); renderExpenses();
 }
+// Marks an expense that would otherwise be flagged "needs receipt" as resolved without a receipt
+// image — used when a credit card/bank statement line is confirmed as adequate backup instead
+// (see expenseReceiptFlag/computeReceiptAudit). Once set, it stops appearing in the Receipt check
+// report and the per-row warning permanently, instead of re-flagging the same expense every time
+// a report or the weekly reconciliation runs. Settable here in the app, or by Claude directly in
+// Supabase during that weekly pass.
+function markReceiptNotNeeded(id){
+  const e = DATA.expenses.find(x=>x.id===id);
+  if(!e) return;
+  e.receiptStatus = 'cc_confirmed';
+  e.receiptStatusDate = new Date().toISOString().slice(0,10);
+  save(); renderExpenses();
+  showGlobalInfo('Marked: no receipt needed for this expense (credit card statement confirms it).');
+}
+function clearReceiptStatus(id){
+  const e = DATA.expenses.find(x=>x.id===id);
+  if(!e) return;
+  delete e.receiptStatus; delete e.receiptStatusDate;
+  save(); renderExpenses();
+}
 const EXP_CATEGORIES = ['Flight','Baggage fee','Uber/Lyft','Ground transport','Hotel','Meals','Visa fee','Supplies','Software','Fuel','Other'];
 // A chat-assisted import passing a category that doesn't exactly match one of the strings above
 // (e.g. "Ground Transport" instead of "Ground transport", or "Uber" instead of "Uber/Lyft") used
@@ -4094,7 +4130,13 @@ function renderExpenses(){
       <td><select onchange="updateExpenseField('${e.id}','classification',this.value)">${EXP_CLASSIFICATIONS.map(c=>`<option value="${c.value}" ${e.classification===c.value?'selected':''}>${c.label}</option>`).join('')}</select></td>
       <td>${e.receipt
           ? `<button class="ghost sm" style="padding:2px 8px;font-size:11px;" onclick="openReceipt('${e.id}')">View</button> <button class="danger" style="padding:2px 6px;font-size:11px;" onclick="removeExpenseReceipt('${e.id}')">x</button>`
-          : `<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" title="JPG, PNG, or PDF — not HEIC" style="max-width:110px;font-size:11px;" onchange="onExpenseReceiptSelected('${e.id}',this)">`}${(()=>{ const flag = expenseReceiptFlag(e); if(!flag) return ''; return `<span class="small" style="display:block;margin-top:2px;color:${flag.ccBacked?'#b45309':'#b91c1c'};" title="${escapeHtml(flag.reason)} — ${flag.ccBacked?'no receipt uploaded, but a matching credit card statement line was found as backup':'no receipt uploaded and no matching credit card statement found — check Google Drive/your hard drive'}">⚠ needs receipt${flag.ccBacked?' (CC-backed)':''}</span>`; })()}</td>
+          : `<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" title="JPG, PNG, or PDF — not HEIC" style="max-width:110px;font-size:11px;" onchange="onExpenseReceiptSelected('${e.id}',this)">`}${(()=>{
+        const flag = expenseReceiptFlag(e); if(!flag) return '';
+        if(e.receiptStatus==='cc_confirmed'){
+          return `<span class="small" style="display:block;margin-top:2px;color:#15803d;" title="Confirmed ${e.receiptStatusDate||''} — a credit card statement backs this up, no receipt needed">✓ No receipt needed<button type="button" class="ghost sm" style="padding:0 4px;font-size:10px;margin-left:4px;" onclick="clearReceiptStatus('${e.id}')" title="Undo — go back to flagging this as needing a receipt">undo</button></span>`;
+        }
+        return `<span class="small" style="display:block;margin-top:2px;color:${flag.ccBacked?'#b45309':'#b91c1c'};" title="${escapeHtml(flag.reason)} — ${flag.ccBacked?'no receipt uploaded, but a matching credit card statement line was found as backup':'no receipt uploaded and no matching credit card statement found — check Google Drive/your hard drive'}">⚠ needs receipt${flag.ccBacked?' (CC-backed)':''}<button type="button" class="ghost sm" style="padding:0 4px;font-size:10px;margin-left:4px;" onclick="markReceiptNotNeeded('${e.id}')" title="Mark: no receipt needed — a credit card statement confirms this charge">✓ OK</button></span>`;
+      })()}</td>
       <td><input type="checkbox" ${e.invoiced?'checked':''} onchange="updateExpenseField('${e.id}','invoiced',this.checked)"></td>
       <td style="text-align:center;"><input type="checkbox" title="Show description as a small footnote on the invoice line item" ${e.includeDescOnInvoice?'checked':''} onchange="updateExpenseField('${e.id}','includeDescOnInvoice',this.checked)"></td>
       <td><button class="ghost sm" title="Move to Archive tab — doesn't delete anything, still counts in Reports" onclick="archiveExpense('${e.id}',true)">Archive</button> <button class="danger" onclick="deleteExpense('${e.id}')">Del</button></td>`;
@@ -5849,10 +5891,15 @@ function expenseReceiptFlag(e){
 }
 function computeReceiptAudit(year){
   const items = DATA.expenses.filter(e=>inReportRange(e.date, year, '') && (e.classification==='business'||e.classification==='billable'));
-  const flagged = items.map(e=>({ e, flag: expenseReceiptFlag(e) })).filter(x=>x.flag);
+  const allFlags = items.map(e=>({ e, flag: expenseReceiptFlag(e) })).filter(x=>x.flag);
+  // Anything marked "cc_confirmed" (via markReceiptNotNeeded, either by you in the app or by
+  // Claude during the weekly reconciliation) has already been resolved -- it stops showing up
+  // as "needs receipt" here permanently, instead of re-nagging about it every single report.
+  const confirmed = allFlags.filter(x=>x.e.receiptStatus==='cc_confirmed');
+  const flagged = allFlags.filter(x=>x.e.receiptStatus!=='cc_confirmed');
   const ccBacked = flagged.filter(x=>x.flag.ccBacked);
   const noBackup = flagged.filter(x=>!x.flag.ccBacked);
-  return { flagged, ccBacked, noBackup, totalChecked: items.length };
+  return { flagged, ccBacked, noBackup, confirmed, totalChecked: items.length };
 }
 function computeTaxSummary(year){
   // Schedule C, Part I — cash-basis gross receipts. Freelancers overwhelmingly file cash-basis,
@@ -6009,9 +6056,10 @@ function buildTaxSummaryHtml(year){
 // statement line exists in this tracker — check Google Drive/your hard drive for the original.
 function buildReceiptCheckHtml(year){
   const r = computeReceiptAudit(year);
+  const confirmedNote = r.confirmed.length ? ` <strong>${r.confirmed.length}</strong> other${r.confirmed.length===1?'':'s'} already confirmed against a credit card statement — no receipt needed, nothing further to do.` : '';
   if(!r.flagged.length){
     return `<h4 style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;color:var(--muted);">Receipt check</h4>
-      <p class="small muted" style="margin-bottom:0;">All ${r.totalChecked} deductible expense(s) checked for ${year} either have a receipt on file or don't need one (under $75 and not lodging). Nothing flagged.</p>`;
+      <p class="small muted" style="margin-bottom:0;">All ${r.totalChecked} deductible expense(s) checked for ${year} either have a receipt on file or don't need one (under $75 and not lodging). Nothing flagged.${confirmedNote}</p>`;
   }
   const rows = (list)=>list.map(({e,flag})=>{
     const p = DATA.projects.find(x=>x.id===e.projectId);
@@ -6019,7 +6067,7 @@ function buildReceiptCheckHtml(year){
   }).join('');
   return `
     <h4 style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;color:var(--muted);">Receipt check — ${r.flagged.length} deductible expense(s) may need a receipt</h4>
-    <p class="small muted" style="margin-top:-2px;">Under IRS Reg. §1.274-5(c)(2)(iii), receipts generally aren't required under $75 — except lodging, which always needs one. These are flagged because they're $75+ or lodging, and have no receipt uploaded in this tracker.</p>
+    <p class="small muted" style="margin-top:-2px;">Under IRS Reg. §1.274-5(c)(2)(iii), receipts generally aren't required under $75 — except lodging, which always needs one. These are flagged because they're $75+ or lodging, and have no receipt uploaded in this tracker.${confirmedNote}</p>
     ${r.noBackup.length ? `<table style="margin-bottom:10px;"><thead><tr><th>Date</th><th>Category / Project</th><th class="right">Amount</th><th>Why flagged</th><th>Credit card backup</th></tr></thead><tbody>${rows(r.noBackup)}</tbody></table>` : ''}
     ${r.ccBacked.length ? `<p class="small muted" style="margin-bottom:4px;"><strong>${r.ccBacked.length}</strong> more have at least a matching credit-card statement line on file (not a substitute for the receipt itself, but something if the original is gone):</p>
     <table><thead><tr><th>Date</th><th>Category / Project</th><th class="right">Amount</th><th>Why flagged</th><th>Credit card backup</th></tr></thead><tbody>${rows(r.ccBacked)}</tbody></table>` : ''}
