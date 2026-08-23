@@ -629,9 +629,11 @@ If you have any questions regarding these line items, please let me know.</texta
           <button class="add-trigger-btn sm" onclick="openActionModal('modal_time')">+ Add a Day</button>
           <input id="drivet_localFile" type="file" accept=".csv,.xlsx,.xls" onchange="readLocalTimeFile(this)" style="display:none;">
           <button class="secondary sm" onclick="document.getElementById('drivet_localFile').value='';document.getElementById('drivet_localFile').click()">Import CSV</button>
+          <button class="secondary sm" onclick="checkDuplicateTime()">Check for Duplicates</button>
           <button class="secondary sm" onclick="deleteSelectedTime()">Delete checked rows</button>
           <button class="danger" onclick="clearAllTime()">Clear all entries</button>
         </div>
+        <div id="timeDupeResults" style="margin-top:10px;"></div>
       </div>
       <div id="drivet_dates"></div>
       <div class="table-wrap"><table id="timeTable"><thead><tr><th><input type="checkbox" id="tf_selectAll" onchange="toggleAllTimeSelected(this)" title="Select all rows to delete them in bulk"></th><th>Status</th><th>Date</th><th>Project</th><th>Type</th><th>In</th><th>Out</th><th>Hours</th><th>Notes</th><th>Inv.</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -701,6 +703,7 @@ If you have any questions regarding these line items, please let me know.</texta
         <div class="export-actions">
           <button class="add-trigger-btn sm" onclick="openActionModal('modal_receipt')">📸 Upload Receipt</button>
           <button class="add-trigger-btn sm" onclick="openActionModal('modal_expense')">+ Add Expense</button>
+          <button class="secondary sm" onclick="checkDuplicateExpenses()">Check for Duplicates</button>
           <button class="secondary sm" onclick="deleteSelectedExpenses()">Delete checked rows</button>
           <button class="danger" onclick="clearAllExpenses()">Clear all expenses</button>
         </div>
@@ -708,6 +711,7 @@ If you have any questions regarding these line items, please let me know.</texta
       <div class="table-wrap"><table id="expenseTable"><thead><tr><th><input type="checkbox" id="ef_selectAll" onchange="toggleAllExpensesSelected(this)" title="Select all rows to delete them in bulk"></th><th>Status</th><th>Date</th><th>Project</th><th>Category</th><th>Description</th><th class="right">Amount</th><th>Classification</th><th>Receipt</th><th>Inv.</th><th title="Show this description as a small footnote on the invoice line item">Inv Des</th><th></th></tr></thead><tbody></tbody></table></div>
       <div class="empty" id="expenseEmpty" style="display:none;">No expenses logged yet.</div>
       <div id="expensePagination"></div>
+      <div id="expenseDupeResults" style="margin-top:10px;"></div>
     </div>
 
     <div class="action-modal-overlay" id="modal_receipt" onclick="if(event.target===this) closeActionModal('modal_receipt')">
@@ -807,6 +811,9 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="field xs"><label>Miles</label><input id="m_miles" type="number" step="0.1"></div>
           <div class="field"><label>Purpose</label><input id="m_purpose" placeholder="e.g. Drive to site for load-in"></div>
         </div>
+        <label class="small" style="display:flex;align-items:center;gap:6px;margin:4px 0 8px;" title="Adds a matching billable expense (category Mileage, amount = miles × rate) to the project above so this trip shows up on that project's invoice. This log entry still counts toward your own Schedule C mileage deduction either way.">
+          <input type="checkbox" id="m_billToClient"> Bill this trip to the client (adds a billable Mileage expense to the project)
+        </label>
         <button onclick="addMileage()">Add trip</button>
         <span id="m_status" class="status-msg"></span>
         <p class="small muted" style="margin-top:10px;margin-bottom:0;">This stays open so you can log several trips in a row — close it whenever you're done.</p>
@@ -844,6 +851,13 @@ If you have any questions regarding these line items, please let me know.</texta
       <div class="section-title">1099-NEC reconciliation</div>
       <p class="small muted" style="margin-top:-4px;">Enter the amount shown in Box 1 of each 1099-NEC you receive for the selected year and compare it to what you've logged as received from that client. A mismatch doesn't necessarily mean an error — it can also mean a payment landed in a different tax year than expected.</p>
       <div class="table-wrap"><table id="report1099Table"><thead><tr><th>Client</th><th class="right">Received (logged)</th><th class="right">1099 Box 1 amount</th><th class="right">Difference</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Data reconciliation check</div>
+      <p class="small muted" style="margin-top:-4px;">Runs the same kind of cross-checks Claude does by hand when reconciling data — orphaned links between invoices and expenses/time, invoiced flags that don't match reality, expenses/time double-billed across invoices, categories that have drifted off the list, and a few other data-integrity checks. Nothing here is fixed automatically — it's a punch list to review, same as any reconciliation pass.</p>
+      <button class="secondary" onclick="runReconcileReport()">Run Reconcile Report</button>
+      <div id="reconcileReportResults" style="margin-top:12px;"></div>
     </div>
 
     <div class="card accent">
@@ -1033,12 +1047,14 @@ If you have any questions regarding these line items, please let me know.</texta
         <div class="toolbar">
           <span class="small muted" id="invoiceSelectedCount">Check rows below to delete them in bulk.</span>
           <div class="export-actions">
+            <button class="secondary sm" onclick="checkDuplicateInvoices()">Check for Duplicates</button>
             <button class="secondary sm" onclick="deleteSelectedInvoices()">Delete checked rows</button>
           </div>
         </div>
         <div class="table-wrap"><table id="invoicesTable"><thead><tr><th><input type="checkbox" id="if_selectAll" onchange="toggleAllInvoicesSelected(this)" title="Select all rows to delete them in bulk"></th><th>#</th><th>Client / Project</th><th>Date</th><th class="right">Total</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
         <div class="empty" id="invoicesEmpty" style="display:none;">No invoices yet — create one with the button above.</div>
         <div id="invoicesPagination"></div>
+        <div id="invoiceDupeResults" style="margin-top:10px;"></div>
       </div>
 
       <div class="action-modal-overlay" id="modal_project" onclick="if(event.target===this) closeActionModal('modal_project')">
@@ -4076,7 +4092,7 @@ function clearReceiptStatus(id){
   delete e.receiptStatus; delete e.receiptStatusDate;
   save(); renderExpenses();
 }
-const EXP_CATEGORIES = ['Flight','Baggage','Uber/Lyft','Travel','Lodging','Meals','Supplies','Software','Fuel','Other'];
+const EXP_CATEGORIES = ['Flight','Baggage','Uber/Lyft','Travel','Lodging','Meals','Supplies','Software','Fuel','Mileage','Other'];
 // The three "add/filter an expense" category dropdowns (Log an Expense popup, the Expenses tab
 // filter, and the invoice editor's "+ Add an expense") used to hardcode their own <option> lists,
 // which had drifted out of sync with EXP_CATEGORIES (missing Fuel and Software — the same list
@@ -4103,7 +4119,8 @@ function normalizeExpenseCategory(raw){
   if(exact) return exact;
   const lc = c.toLowerCase();
   if(lc.includes('uber') || lc.includes('lyft') || lc.includes('taxi') || lc.includes('rideshare')) return 'Uber/Lyft';
-  if(lc.includes('ground') || lc.includes('transport') || lc.includes('parking') || lc.includes('rental car') || lc.includes('mileage')) return 'Travel';
+  if(lc.includes('mileage')) return 'Mileage';
+  if(lc.includes('ground') || lc.includes('transport') || lc.includes('parking') || lc.includes('rental car')) return 'Travel';
   if(lc.includes('bag')) return 'Baggage';
   if(lc.includes('flight') || lc.includes('air')) return 'Flight';
   if(lc.includes('hotel') || lc.includes('lodging') || lc.includes('airbnb')) return 'Lodging';
@@ -4242,22 +4259,62 @@ function renderExpenses(){
 
 // ---------- Mileage ----------
 let mileageSelected = new Set();
+// "Bill this trip to client" creates a linked, billable Expense (category Mileage) alongside the
+// mileage log entry, so the trip shows up on that project's invoice without having to enter it
+// twice. The mileage log entry itself ALWAYS still counts toward your own Schedule C car-expense
+// deduction (see computeTaxSummary/line9_car) regardless of whether it's billed — billing the
+// client and claiming the standard-mileage deduction on the same driving isn't double-dipping,
+// since the billed amount is ordinary business income and the deduction is the real cost against
+// it. The "Mileage" expense CATEGORY, however, is deliberately excluded from the Schedule C
+// expense-bucket logic (see the category loop in computeTaxSummary) since it's a billing
+// pass-through, not a separate out-of-pocket cost — counting it there on top of line9_car would
+// be the actual double-dip. Added 2026-08-23.
 function addMileage(){
   const date = document.getElementById('m_date').value;
   const miles = parseFloat(document.getElementById('m_miles').value);
   if(!date || !miles){ setStatus('m_status','Date and miles are required.', true); return; }
-  DATA.mileage.push({
-    id: uid(), date, projectId: document.getElementById('m_project').value || null,
+  const projectId = document.getElementById('m_project').value || null;
+  const billToClient = document.getElementById('m_billToClient').checked;
+  if(billToClient && !projectId){ setStatus('m_status','Pick a project above to bill this trip to.', true); return; }
+  const rate = DATA.taxSettings.mileageRate || 0.76;
+  const purpose = document.getElementById('m_purpose').value.trim();
+  const mileageEntry = {
+    id: uid(), date, projectId,
     start: document.getElementById('m_start').value.trim(),
     end: document.getElementById('m_end').value.trim(),
-    miles, purpose: document.getElementById('m_purpose').value.trim(),
-    rateAtEntry: DATA.taxSettings.mileageRate || 0.76
-  });
+    miles, purpose,
+    rateAtEntry: rate,
+    billedExpenseId: null
+  };
+  if(billToClient){
+    const amount = Math.round(miles*rate*100)/100;
+    const expId = uid();
+    DATA.expenses.push({
+      id: expId, projectId, date, category:'Mileage', amount,
+      description: `Mileage — ${miles} mi${purpose?' ('+purpose+')':''} @ $${rate.toFixed(2)}/mi`,
+      invoiced:false, classification:'billable', receipt:null, receiptName:null
+    });
+    mileageEntry.billedExpenseId = expId;
+  }
+  DATA.mileage.push(mileageEntry);
   save(); render();
   ['m_start','m_end','m_miles','m_purpose'].forEach(id=>document.getElementById(id).value='');
-  setStatus('m_status','Trip logged.', false, true);
+  document.getElementById('m_billToClient').checked = false;
+  setStatus('m_status', billToClient ? 'Trip logged and added as a billable expense on that project.' : 'Trip logged.', false, true);
 }
-function deleteMileage(id){ DATA.mileage = DATA.mileage.filter(m=>m.id!==id); save(); render(); }
+function deleteMileage(id){
+  const m = DATA.mileage.find(x=>x.id===id);
+  if(m && m.billedExpenseId){
+    const linked = DATA.expenses.find(e=>e.id===m.billedExpenseId);
+    if(linked && linked.invoiced){
+      setStatus('m_status', 'The linked Mileage expense is already on an invoice — remove it there first, then delete this trip.', true);
+      return;
+    }
+    if(linked) DATA.expenses = DATA.expenses.filter(e=>e.id!==m.billedExpenseId);
+  }
+  DATA.mileage = DATA.mileage.filter(x=>x.id!==id);
+  save(); render();
+}
 function updateMileageField(id, field, value){
   const m = DATA.mileage.find(x=>x.id===id);
   if(!m) return;
@@ -5614,6 +5671,140 @@ function renderReports(){
   render1099Table(year);
   renderNotesAndFlags();
 }
+// ---------- Reconcile Report ----------
+// Client-side version of the manual cross-checks Claude has run by hand via SQL during
+// reconciliation passes: orphaned expIds/timeIds on invoices, invoiced flags that don't match
+// actual invoice linkage, expenses/time entries double-billed across more than one invoice,
+// off-list categories, orphaned project/payment references, and duplicate ids. On-demand only —
+// nothing here writes to DATA, it's read-only analysis for review.
+function runReconcileReport(){
+  const sections = [];
+  const expById = new Map(DATA.expenses.map(e=>[e.id,e]));
+  const timeById = new Map(DATA.time.map(t=>[t.id,t]));
+  const projById = new Map(DATA.projects.map(p=>[p.id,p]));
+
+  // 1. Orphaned expIds/timeIds — invoice references an id that no longer exists.
+  const orphanedRefs = [];
+  DATA.invoices.forEach(inv=>{
+    (inv.expIds||[]).forEach(id=>{ if(!expById.has(id)) orphanedRefs.push(`Invoice ${inv.number||inv.id} references expense id "${id}" which doesn't exist.`); });
+    (inv.timeIds||[]).forEach(id=>{ if(!timeById.has(id)) orphanedRefs.push(`Invoice ${inv.number||inv.id} references time id "${id}" which doesn't exist.`); });
+  });
+  if(orphanedRefs.length) sections.push({title:`${orphanedRefs.length} orphaned invoice reference${orphanedRefs.length===1?'':'s'}`, tone:'bad', items:orphanedRefs});
+
+  // 2. Expense/time linked on an invoice but flagged invoiced:false (or vice versa).
+  const linkedExpIds = new Set(), linkedTimeIds = new Set();
+  const expIdInvoiceCount = new Map(), timeIdInvoiceCount = new Map();
+  DATA.invoices.forEach(inv=>{
+    (inv.expIds||[]).forEach(id=>{ linkedExpIds.add(id); expIdInvoiceCount.set(id,(expIdInvoiceCount.get(id)||0)+1); });
+    (inv.timeIds||[]).forEach(id=>{ linkedTimeIds.add(id); timeIdInvoiceCount.set(id,(timeIdInvoiceCount.get(id)||0)+1); });
+  });
+  const flagMismatches = [];
+  DATA.expenses.forEach(e=>{
+    if(linkedExpIds.has(e.id) && !e.invoiced) flagMismatches.push(`Expense "${e.description||e.id}" ($${(e.amount||0).toFixed(2)}) is linked to an invoice but marked "invoiced: false".`);
+    if(!linkedExpIds.has(e.id) && e.invoiced) flagMismatches.push(`Expense "${e.description||e.id}" ($${(e.amount||0).toFixed(2)}) is marked "invoiced: true" but isn't linked to any invoice.`);
+  });
+  DATA.time.forEach(t=>{
+    if(linkedTimeIds.has(t.id) && !t.invoiced) flagMismatches.push(`Time entry ${t.date||t.id} is linked to an invoice but marked "invoiced: false".`);
+    if(!linkedTimeIds.has(t.id) && t.invoiced) flagMismatches.push(`Time entry ${t.date||t.id} is marked "invoiced: true" but isn't linked to any invoice.`);
+  });
+  if(flagMismatches.length) sections.push({title:`${flagMismatches.length} invoiced-flag mismatch${flagMismatches.length===1?'':'es'}`, tone:'warn', items:flagMismatches});
+
+  // 3. Double-billing — same expense/time id linked on more than one invoice.
+  const doubleBilled = [];
+  expIdInvoiceCount.forEach((count,id)=>{ if(count>1){ const e=expById.get(id); doubleBilled.push(`Expense "${e?e.description:id}" is linked on ${count} different invoices.`); } });
+  timeIdInvoiceCount.forEach((count,id)=>{ if(count>1){ const t=timeById.get(id); doubleBilled.push(`Time entry ${t?t.date:id} is linked on ${count} different invoices.`); } });
+  if(doubleBilled.length) sections.push({title:`${doubleBilled.length} double-billed record${doubleBilled.length===1?'':'s'}`, tone:'bad', items:doubleBilled});
+
+  // 4. Off-list expense categories.
+  const badCategories = DATA.expenses.filter(e=>!EXP_CATEGORIES.includes(e.category)).map(e=>`Expense "${e.description||e.id}" has category "${e.category}" which isn't on the current category list.`);
+  if(badCategories.length) sections.push({title:`${badCategories.length} expense${badCategories.length===1?'':'s'} with an off-list category`, tone:'warn', items:badCategories});
+
+  // 5. Orphaned project references (expenses/time pointing at a project that no longer exists).
+  const orphanedProjectRefs = [];
+  DATA.expenses.forEach(e=>{ if(e.projectId && !projById.has(e.projectId)) orphanedProjectRefs.push(`Expense "${e.description||e.id}" points at project id "${e.projectId}" which doesn't exist.`); });
+  DATA.time.forEach(t=>{ if(t.projectId && !projById.has(t.projectId)) orphanedProjectRefs.push(`Time entry ${t.date||t.id} points at project id "${t.projectId}" which doesn't exist.`); });
+  if(orphanedProjectRefs.length) sections.push({title:`${orphanedProjectRefs.length} orphaned project reference${orphanedProjectRefs.length===1?'':'s'}`, tone:'bad', items:orphanedProjectRefs});
+
+  // 6. Orphaned payments (payment.invoiceId doesn't match any invoice).
+  const invIds = new Set(DATA.invoices.map(i=>i.id));
+  const orphanedPayments = DATA.payments.filter(p=>p.invoiceId && !invIds.has(p.invoiceId)).map(p=>`Payment of $${(p.amount||0).toFixed(2)} on ${p.date||'(no date)'} references invoice id "${p.invoiceId}" which doesn't exist.`);
+  if(orphanedPayments.length) sections.push({title:`${orphanedPayments.length} orphaned payment${orphanedPayments.length===1?'':'s'}`, tone:'bad', items:orphanedPayments});
+
+  // 7. Duplicate ids (shouldn't happen, but cheap to check — a broken import/merge could cause it).
+  function findDupeIds(arr,label){
+    const seen = new Set(), dupes = new Set();
+    arr.forEach(x=>{ if(seen.has(x.id)) dupes.add(x.id); seen.add(x.id); });
+    return Array.from(dupes).map(id=>`Duplicate ${label} id "${id}" appears more than once.`);
+  }
+  const dupeIds = [
+    ...findDupeIds(DATA.expenses,'expense'), ...findDupeIds(DATA.time,'time'),
+    ...findDupeIds(DATA.invoices,'invoice'), ...findDupeIds(DATA.projects,'project'), ...findDupeIds(DATA.clients,'client')
+  ];
+  if(dupeIds.length) sections.push({title:`${dupeIds.length} duplicate id${dupeIds.length===1?'':'s'}`, tone:'bad', items:dupeIds});
+
+  // 8. Mileage entries whose billedExpenseId points at a nonexistent expense.
+  const orphanedMileage = (DATA.mileage||[]).filter(m=>m.billedExpenseId && !expById.has(m.billedExpenseId)).map(m=>`Mileage trip on ${m.date||m.id} references billed expense id "${m.billedExpenseId}" which doesn't exist.`);
+  if(orphanedMileage.length) sections.push({title:`${orphanedMileage.length} orphaned mileage link${orphanedMileage.length===1?'':'s'}`, tone:'bad', items:orphanedMileage});
+
+  const el = document.getElementById('reconcileReportResults');
+  if(!sections.length){
+    el.innerHTML = `<div class="card" style="margin:0;border-color:var(--good,#16a34a);"><p class="small" style="margin:0;color:var(--good,#16a34a);font-weight:600;">✓ Clean — no issues found across ${DATA.expenses.length} expenses, ${DATA.time.length} time entries, ${DATA.invoices.length} invoices, and ${DATA.payments.length} payments.</p></div>`;
+  } else {
+    el.innerHTML = sections.map(s=>`
+      <div class="card" style="margin-bottom:10px;${s.tone==='bad'?'border-color:var(--danger,#dc2626);':'border-color:var(--warn,#d97706);'}">
+        <div class="section-title" style="margin-bottom:6px;${s.tone==='bad'?'color:var(--danger,#dc2626);':'color:var(--warn,#d97706);'}">${s.title}</div>
+        <ul style="margin:0;padding-left:18px;">${s.items.map(it=>`<li class="small" style="margin-bottom:4px;">${escapeHtml(it)}</li>`).join('')}</ul>
+      </div>`).join('');
+  }
+  setStatus('sync_status', sections.length ? `Reconcile Report: ${sections.reduce((s,x)=>s+x.items.length,0)} item(s) flagged for review.` : 'Reconcile Report: clean.', false, true);
+}
+// ---------- Check for Duplicates (per-page) ----------
+// Groups records by a same-page-appropriate key and flags any group with more than one member.
+// This is a review aid, not an auto-fixer — nothing gets touched, it just points at likely dupes
+// so they can be checked (and deleted/merged manually) same as any reconciliation finding.
+function findDuplicateGroups(arr, keyFn){
+  const map = new Map();
+  arr.forEach(item=>{
+    const k = keyFn(item);
+    if(k===null || k===undefined) return;
+    if(!map.has(k)) map.set(k, []);
+    map.get(k).push(item);
+  });
+  return Array.from(map.values()).filter(g=>g.length>1);
+}
+function renderDupeResults(elId, groups, emptyLabel, rowFn){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  if(!groups.length){
+    el.innerHTML = `<div class="card" style="margin:0;border-color:var(--good,#16a34a);"><p class="small" style="margin:0;color:var(--good,#16a34a);font-weight:600;">✓ No likely duplicates found${emptyLabel?' — '+emptyLabel:''}.</p></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card" style="margin:0;border-color:var(--warn,#d97706);">
+    <div class="section-title" style="margin-bottom:6px;color:var(--warn,#d97706);">${groups.length} possible duplicate group${groups.length===1?'':'s'} — review before deleting anything</div>
+    ${groups.map(g=>`<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line);"><ul style="margin:0;padding-left:18px;">${g.map(rowFn).map(t=>`<li class="small">${escapeHtml(t)}</li>`).join('')}</ul></div>`).join('')}
+  </div>`;
+}
+function checkDuplicateInvoices(){
+  const groups = findDuplicateGroups(DATA.invoices, i=>`${i.projectId}|${i.date}|${(i.total||0).toFixed(2)}`);
+  renderDupeResults('invoiceDupeResults', groups, 'matching project + date + total', i=>{
+    const p = DATA.projects.find(x=>x.id===i.projectId);
+    return `Invoice ${i.number||i.id} — ${p?p.name:'(unknown project)'} — ${i.date||'no date'} — $${(i.total||0).toFixed(2)} — status: ${i.status||'draft'}`;
+  });
+}
+function checkDuplicateTime(){
+  const groups = findDuplicateGroups(DATA.time, t=>`${t.projectId}|${t.date}|${t.type}`);
+  renderDupeResults('timeDupeResults', groups, 'matching project + date + type', t=>{
+    const p = DATA.projects.find(x=>x.id===t.projectId);
+    return `Time entry — ${p?p.name:'(unknown project)'} — ${t.date||'no date'} — ${t.type} — ${t.hours!=null?t.hours+' hrs':'(no hours)'}${t.invoiced?' — invoiced':''}`;
+  });
+}
+function checkDuplicateExpenses(){
+  const groups = findDuplicateGroups(DATA.expenses, e=>`${e.projectId}|${e.date}|${(e.amount||0).toFixed(2)}`);
+  renderDupeResults('expenseDupeResults', groups, 'matching project + date + amount', e=>{
+    const p = DATA.projects.find(x=>x.id===e.projectId);
+    return `Expense — ${p?p.name:'(unknown project)'} — ${e.date||'no date'} — ${e.category} — $${(e.amount||0).toFixed(2)} — "${e.description||'(no description)'}"${e.invoiced?' — invoiced':''}`;
+  });
+}
 // Surfaces everything Claude has left behind during imports/reconciliation so it lives
 // somewhere permanent in the app, not just in a chat message that scrolls out of view.
 // Two sources: (1) an invoice's importNotes — set when a historical invoice is reconstructed
@@ -6074,7 +6265,13 @@ function computeTaxSummary(year){
   const otherBreakdown = {};
   expensesYear.forEach(e=>{
     const amt = e.amount||0;
-    if(e.category==='Supplies') line22_supplies += amt;
+    // "Mileage" category expenses are a billing pass-through created when a trip is billed to a
+    // client (see addMileage()) — they're not a separate out-of-pocket cost, so they're excluded
+    // here entirely. The real vehicle deduction for ALL logged mileage (billed or not) is already
+    // computed above as line9_car from DATA.mileage directly; counting the Mileage expense amount
+    // again here too would double the deduction for the same driving.
+    if(e.category==='Mileage'){ /* intentionally excluded — see comment above */ }
+    else if(e.category==='Supplies') line22_supplies += amt;
     else if(e.category==='Meals') line24b_mealsFull += amt;
     else if(SCHEDULE_C_TRAVEL_CATS.has(e.category)) line24a_travel += amt;
     else { line27a_other += amt; otherBreakdown[e.category] = (otherBreakdown[e.category]||0) + amt; }
@@ -6437,11 +6634,25 @@ function splitCsvLine(line){
   out.push(cur);
   return out;
 }
+// Local date + time suffix for backup filenames, e.g. "2026-08-23_6-45pm" (minutes omitted on
+// the hour, e.g. "2026-08-23_6pm") — uses the browser's local time, not UTC, so it matches what
+// the clock on Michael's screen says when he clicks the button. Keeps exports from the same day
+// from overwriting each other and matches the naming convention he was already doing by hand.
+function backupTimestampSuffix(){
+  const d = new Date();
+  const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), da = String(d.getDate()).padStart(2,'0');
+  let h = d.getHours();
+  const min = d.getMinutes();
+  const ampm = h >= 12 ? 'pm' : 'am';
+  h = h % 12; if(h === 0) h = 12;
+  const minPart = min === 0 ? '' : `-${String(min).padStart(2,'0')}`;
+  return `${y}-${mo}-${da}_${h}${minPart}${ampm}`;
+}
 // Pure client-side download — no connector needed, works entirely in the browser.
 async function exportCsvBackup(){
   const csv = buildCsv();
   const blob = new Blob([csv], { type: 'text/csv' });
-  const saved = await saveBlobWithPicker(blob, `BusinessExpenseTracker_backup-${new Date().toISOString().slice(0,10)}.csv`, {types:[{description:'CSV file', accept:{'text/csv':['.csv']}}]});
+  const saved = await saveBlobWithPicker(blob, `BusinessExpenseTracker_backup-${backupTimestampSuffix()}.csv`, {types:[{description:'CSV file', accept:{'text/csv':['.csv']}}]});
   if(saved) setStatus('sync_status','Downloaded.', false, true);
 }
 // A full, lossless snapshot of everything in DATA — unlike the CSV export, this round-trips
@@ -6451,7 +6662,7 @@ async function exportCsvBackup(){
 async function exportJsonBackup(){
   const json = JSON.stringify(DATA, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
-  const saved = await saveBlobWithPicker(blob, `BusinessExpenseTracker_full-backup-${new Date().toISOString().slice(0,10)}.json`, {types:[{description:'JSON file', accept:{'application/json':['.json']}}]});
+  const saved = await saveBlobWithPicker(blob, `BusinessExpenseTracker_full-backup-${backupTimestampSuffix()}.json`, {types:[{description:'JSON file', accept:{'application/json':['.json']}}]});
   if(!saved) return false;
   DATA.lastBackupAt = new Date().toISOString();
   DATA.backupReminderSnoozedUntil = null;
