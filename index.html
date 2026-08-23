@@ -916,6 +916,11 @@ If you have any questions regarding these line items, please let me know.</texta
 
   <!-- NOTES & FLAGS -->
   <div class="panel" data-panel="notes">
+    <div class="card" style="margin-bottom:10px;">
+      <div class="section-title" style="margin-bottom:2px;">Recent updates</div>
+      <p class="small muted" style="margin-top:-4px;">Changes made outside your own editing — things Claude added or adjusted during a requested update or the weekly scan, so you can see what changed without asking.</p>
+      <div id="changeLogList"></div>
+    </div>
     <div class="card">
       <div class="section-title">Notes &amp; flags</div>
       <p class="small muted" style="margin-top:-4px;">Everything Claude left behind while importing or reconciling data — date-label mismatches, hour discrepancies, cross-invoice billing, invoice-number collisions, anything else worth a second look. Moved to its own tab so a long list doesn't push the Reports tab down.</p>
@@ -1878,6 +1883,10 @@ const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE
 let authMode = 'signin'; // 'signin' | 'signup'
 let currentSession = null;
 let cloudPushTimer = null;
+// The updated_at timestamp of the cloud row as of our last load/save — used by scheduleCloudPush()
+// to detect whether something else (another device, another tab, or a Claude-side backend update)
+// wrote to this row since we last saw it, so a routine save never silently overwrites it.
+let cloudRowUpdatedAt = null;
 
 function authSetStatus(msg, kind){
   const el = document.getElementById('auth_status');
@@ -1991,14 +2000,19 @@ function waitForAuth(){
 async function loadFromCloud(session){
   if(!session) return; // offline mode — nothing to reconcile with
   try{
-    const { data: row, error } = await sb.from('tracker_data').select('data').eq('user_id', session.user.id).maybeSingle();
+    const { data: row, error } = await sb.from('tracker_data').select('data, updated_at').eq('user_id', session.user.id).maybeSingle();
     if(error) throw error;
     if(row){
       DATA = row.data;
+      cloudRowUpdatedAt = row.updated_at || null;
       localStorage.setItem(STORE_KEY, JSON.stringify(DATA));
       setStatus('sync_status', 'Loaded your synced data from the cloud.', false, true);
     } else {
       await sb.from('tracker_data').insert({ user_id: session.user.id, data: DATA });
+      try{
+        const { data: fresh } = await sb.from('tracker_data').select('updated_at').eq('user_id', session.user.id).maybeSingle();
+        cloudRowUpdatedAt = fresh ? fresh.updated_at : null;
+      }catch(e){ cloudRowUpdatedAt = null; }
       setStatus('sync_status', 'This device\'s data is now the starting point in the cloud.', false, true);
     }
   }catch(err){
@@ -2007,18 +2021,45 @@ async function loadFromCloud(session){
   }
 }
 // Debounced push so rapid edits (e.g. typing) don't fire a network request per keystroke.
+// Before writing, this now checks whether the cloud row's updated_at has moved since we last
+// loaded/saved it. This app stores one JSON blob per user, so a plain upsert would otherwise
+// silently overwrite anything that changed elsewhere in the meantime — another device, another
+// browser tab, or Claude making a requested update or running the weekly scan directly against
+// Supabase. If a conflict is detected, the save is held and a banner tells you to reload instead
+// of guessing. Added 2026-08-23 in response to Michael asking how concurrent updates were
+// protected against; relies on a DB trigger (added the same day) that stamps updated_at on every
+// write, so it can't be spoofed or missed by client code, only on this client's own knowledge of it.
 function scheduleCloudPush(){
   if(!currentSession) return;
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(async ()=>{
     try{
+      const { data: current, error: checkErr } = await sb.from('tracker_data').select('updated_at').eq('user_id', currentSession.user.id).maybeSingle();
+      if(checkErr) throw checkErr;
+      if(current && cloudRowUpdatedAt && current.updated_at && current.updated_at !== cloudRowUpdatedAt){
+        showSyncConflictWarning();
+        return;
+      }
       const { error } = await sb.from('tracker_data').upsert({ user_id: currentSession.user.id, data: DATA });
       if(error) throw error;
+      const { data: fresh } = await sb.from('tracker_data').select('updated_at').eq('user_id', currentSession.user.id).maybeSingle();
+      if(fresh) cloudRowUpdatedAt = fresh.updated_at;
     }catch(err){
       console.error('Cloud sync failed', err);
       setStatus('sync_status', 'Saved on this device, but the cloud sync failed — check your connection.', true);
     }
   }, 1200);
+}
+// A persistent top banner (rather than a status line that scrolls out of view) since this needs
+// to survive until the person actually reloads — easy to miss otherwise mid-edit.
+function showSyncConflictWarning(){
+  setStatus('sync_status', 'Your data changed elsewhere since this page loaded — reload before continuing.', true);
+  if(document.getElementById('syncConflictBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'syncConflictBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b91c1c;color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:600;';
+  banner.innerHTML = 'Your synced data changed elsewhere since this page loaded (likely a Claude-side update) — reload now before making more edits, or your next save could overwrite it. <button onclick="location.reload()" style="margin-left:10px;background:#fff;color:#b91c1c;border:none;padding:4px 10px;border-radius:4px;font-weight:700;cursor:pointer;">Reload now</button>';
+  document.body.prepend(banner);
 }
 // Confirmed-correct logo from your real invoice letterhead (Weinman_Production_Logo,
 // transparent-logo.svg) — used to backfill Settings > Your Info if you haven't uploaded
@@ -2211,7 +2252,8 @@ function defaultData(){
     payments: [],
     mileage: [],
     form1099: [],
-    taxSettings: { setAsidePct: 30, mileageRate: 0.76, bizType: 'sole_prop', ssWageBase: 176100 }
+    taxSettings: { setAsidePct: 30, mileageRate: 0.76, bizType: 'sole_prop', ssWageBase: 176100 },
+    changeLog: []
   };
 }
 
@@ -2418,6 +2460,23 @@ const EXP_CLASSIFICATIONS = [
   { value:'unknown', label:'Unknown — needs review' }
 ];
 function classificationLabel(v){ const m = EXP_CLASSIFICATIONS.find(c=>c.value===v); return m ? m.label : v; }
+// A visible log of changes made to your data from outside your own editing — mainly Claude
+// making a requested update or the weekly scan adding/adjusting something directly in Supabase.
+// This answers "how do I know what changed" without having to ask or dig through chat history;
+// it's populated by direct SQL writes to data.changeLog (mirroring this shape) rather than by
+// anything in this file, so most sessions will only ever read it, not write it. Added 2026-08-23.
+function logChange(text){
+  if(!DATA.changeLog) DATA.changeLog = [];
+  DATA.changeLog.unshift({ date: new Date().toISOString().slice(0,10), text });
+  if(DATA.changeLog.length > 50) DATA.changeLog.length = 50;
+}
+function renderChangeLog(){
+  const el = document.getElementById('changeLogList');
+  if(!el) return;
+  const log = (DATA.changeLog||[]).slice(0,10);
+  if(!log.length){ el.innerHTML = '<p class="small muted">Nothing logged yet.</p>'; return; }
+  el.innerHTML = log.map(e=>`<div class="small" style="padding:5px 0;border-bottom:1px solid var(--line);"><span class="muted">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.text||'')}</div>`).join('');
+}
 function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); scheduleCloudPush(); }
 
 // ---------- Archive (projects/invoices/expenses closed out of the working tabs) ----------
@@ -6586,6 +6645,7 @@ function render(){
   renderSettings();
   renderInvoiceDefaults();
   renderInvoiceList();
+  renderChangeLog();
   renderNotesAndFlags();
   renderArchiveTab();
   renderBudgetTab();
