@@ -215,6 +215,26 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 .auth-card .status.ok{color:var(--good);}
 @keyframes flashHighlight{0%,100%{box-shadow:none;}30%{box-shadow:0 0 0 3px var(--accent);}}
 .flash-highlight{animation:flashHighlight 1.6s ease-in-out;}
+/* ---------- Add-item popups ----------
+   Generic modal shell for "+ Add X" buttons (client/project/time/expense/receipt/mileage/note).
+   Deliberately reuses the same open/close mechanics as .lightbox-overlay elsewhere in the app
+   (class toggle + backdrop click + Escape), just with nicer motion/spacing since these are
+   everyday-use forms, not one-off confirmations. The form fields/IDs/onclick handlers inside
+   each modal are untouched from their old always-visible-card versions — only the container
+   changed, so every linkage (project/client dropdowns, submit handlers) still works exactly
+   as before. */
+.action-modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,11,13,.72);backdrop-filter:blur(2px);z-index:250;align-items:flex-start;justify-content:center;padding:6vh 20px 20px;overflow-y:auto;}
+.action-modal-overlay.open{display:flex;}
+.action-modal{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px 20px;width:100%;max-width:480px;box-shadow:0 24px 70px rgba(0,0,0,.55);animation:modalPop .16s ease-out;}
+.action-modal.wide{max-width:620px;}
+@keyframes modalPop{0%{opacity:0;transform:translateY(10px) scale(.97);}100%{opacity:1;transform:translateY(0) scale(1);}}
+.action-modal-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-right:26px;}
+.action-modal-icon{font-size:19px;line-height:1;}
+.action-modal-header h3{margin:0;font-size:15px;font-weight:700;}
+.action-modal .modal-close{position:absolute;top:14px;right:14px;background:transparent;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:6px;font-weight:400;}
+.action-modal .modal-close:hover{background:var(--field-bg);color:var(--ink);}
+.add-trigger-row{display:flex;justify-content:flex-end;margin-bottom:10px;}
+.add-trigger-btn{display:inline-flex;align-items:center;gap:6px;}
 </style>
 </head>
 <body>
@@ -414,31 +434,38 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 
   <!-- CLIENTS -->
   <div class="panel" data-panel="clients">
-    <div class="card">
-      <div class="section-title" id="c_formTitle">Add a client</div>
-      <p class="small muted" style="margin-top:-4px;">Just contact info here — rates and invoice terms live under "Invoicing Defaults" and get set per-invoice when you create one.</p>
-      <div class="row">
-        <div class="field"><label>Company</label><input id="c_name" placeholder="e.g. Van Wagner Productions"></div>
-        <div class="field"><label>Contact name</label><input id="c_contactName" placeholder="e.g. Christine Suchy"></div>
+    <div class="add-trigger-row">
+      <button class="add-trigger-btn" onclick="openActionModal('modal_client')">+ Add Client</button>
+    </div>
+
+    <div class="action-modal-overlay" id="modal_client" onclick="if(event.target===this) cancelEditClient()">
+      <div class="action-modal">
+        <button class="modal-close" onclick="cancelEditClient()">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">🧑‍💼</span><h3 id="c_formTitle">Add a client</h3></div>
+        <p class="small muted" style="margin-top:-4px;">Just contact info here — rates and invoice terms live under "Invoicing Defaults" and get set per-invoice when you create one.</p>
+        <div class="row">
+          <div class="field"><label>Company</label><input id="c_name" placeholder="e.g. Van Wagner Productions"></div>
+          <div class="field"><label>Contact name</label><input id="c_contactName" placeholder="e.g. Christine Suchy"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Email</label><input id="c_invEmail" placeholder="e.g. csuchy@vanwagner.com"></div>
+          <div class="field"><label>Phone</label><input id="c_phone" placeholder="optional"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Street address</label><input id="c_addrStreet" placeholder="optional"></div>
+        </div>
+        <div class="row">
+          <div class="field sm"><label>City</label><input id="c_addrCity" placeholder="optional"></div>
+          <div class="field xs"><label>State</label><input id="c_addrState" placeholder="e.g. NY" maxlength="2" style="text-transform:uppercase;"></div>
+          <div class="field sm"><label>Zip</label><input id="c_addrZip" placeholder="optional"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Notes</label><textarea id="c_notes" placeholder="optional"></textarea></div>
+        </div>
+        <button id="c_submitBtn" onclick="submitClient()">Add client</button>
+        <button class="ghost" id="c_cancelBtn" style="display:none;" onclick="cancelEditClient()">Cancel edit</button>
+        <span id="c_status" class="status-msg"></span>
       </div>
-      <div class="row">
-        <div class="field"><label>Email</label><input id="c_invEmail" placeholder="e.g. csuchy@vanwagner.com"></div>
-        <div class="field"><label>Phone</label><input id="c_phone" placeholder="optional"></div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Street address</label><input id="c_addrStreet" placeholder="optional"></div>
-      </div>
-      <div class="row">
-        <div class="field sm"><label>City</label><input id="c_addrCity" placeholder="optional"></div>
-        <div class="field xs"><label>State</label><input id="c_addrState" placeholder="e.g. NY" maxlength="2" style="text-transform:uppercase;"></div>
-        <div class="field sm"><label>Zip</label><input id="c_addrZip" placeholder="optional"></div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Notes</label><textarea id="c_notes" placeholder="optional"></textarea></div>
-      </div>
-      <button id="c_submitBtn" onclick="submitClient()">Add client</button>
-      <button class="ghost" id="c_cancelBtn" style="display:none;" onclick="cancelEditClient()">Cancel edit</button>
-      <span id="c_status" class="status-msg"></span>
     </div>
 
     <div class="card">
@@ -469,6 +496,7 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
       <div class="toolbar">
         <span class="small muted" id="projectSelectedCount">Check rows below to delete them in bulk.</span>
         <div class="export-actions">
+          <button class="add-trigger-btn sm" onclick="openNewProjectModal()">+ New Project</button>
           <button class="secondary sm" onclick="deleteSelectedProjects()">Delete checked rows</button>
         </div>
       </div>
@@ -593,6 +621,7 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="toolbar">
             <span class="small muted" id="timeSelectedCount">Check rows below to delete them in bulk.</span>
             <div class="export-actions">
+              <button class="add-trigger-btn sm" onclick="openActionModal('modal_time')">+ Add a Day</button>
               <button class="secondary sm" onclick="deleteSelectedTime()">Delete checked rows</button>
               <button class="danger" onclick="clearAllTime()">Clear all entries</button>
             </div>
@@ -605,33 +634,6 @@ If you have any questions regarding these line items, please let me know.</texta
 
       <div class="invoice-editor-right">
         <div class="card accent">
-          <div class="section-title" style="margin-bottom:6px;">+ Add a day</div>
-          <div class="row">
-            <div class="field"><label>Project</label><select id="t_project" onchange="recalcTimeInOut()"></select></div>
-            <div class="field sm"><label>Date</label><input id="t_date" type="date"></div>
-          </div>
-          <div class="row">
-            <div class="field sm"><label>Type</label>
-              <select id="t_type" onchange="recalcTimeInOut()">
-                <option value="work">Work day</option>
-                <option value="travel">Travel day</option>
-              </select>
-            </div>
-          </div>
-          <div class="row">
-            <div class="field xs"><label>Time in</label><input id="t_timeIn" type="time" onchange="recalcTimeInOut()"></div>
-            <div class="field xs"><label>Time out</label><input id="t_timeOut" type="time" onchange="recalcTimeInOut()"></div>
-            <div class="field xs"><label>Hours</label><input id="t_hours" type="number" step="0.25"></div>
-          </div>
-          <div class="row">
-            <div class="field"><label>Notes</label><input id="t_notes" placeholder="optional"></div>
-          </div>
-          <p class="small muted" id="t_calcNote" style="margin-top:-6px;">Fill in Time in/out to auto-calculate Hours, or just type Hours directly if you don't have exact times. Hours only matter for work days for overtime (1.5x/2.0x) — travel days never get OT.</p>
-          <button onclick="addTime()">Add entry</button>
-          <span id="t_status" class="status-msg"></span>
-        </div>
-
-        <div class="card accent">
           <div class="section-title" style="margin-bottom:6px;">Ask Claude</div>
           <p class="small muted" style="margin-top:-4px;">This page can't reach your calendar or email on its own. Type what you want pulled in, hit "Copy request," then paste it into your chat with Claude — it'll fetch the details and drop the days in here for you.</p>
           <textarea id="askClaude_time" rows="2" placeholder='e.g. &quot;Add my LIV Golf UK trip, Aug 12–17, as travel/work days&quot;'></textarea>
@@ -640,6 +642,37 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="field" style="margin-top:8px;"><label>...or upload a .csv (Excel: save as .csv first)</label><input id="drivet_localFile" type="file" accept=".csv,.xlsx,.xls" onchange="readLocalTimeFile(this)"></div>
           <div id="drivet_dates"></div>
         </div>
+      </div>
+    </div>
+
+    <div class="action-modal-overlay" id="modal_time" onclick="if(event.target===this) closeActionModal('modal_time')">
+      <div class="action-modal">
+        <button class="modal-close" onclick="closeActionModal('modal_time')">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">🗓️</span><h3>Add a day</h3></div>
+        <div class="row">
+          <div class="field"><label>Project</label><select id="t_project" onchange="recalcTimeInOut()"></select></div>
+          <div class="field sm"><label>Date</label><input id="t_date" type="date"></div>
+        </div>
+        <div class="row">
+          <div class="field sm"><label>Type</label>
+            <select id="t_type" onchange="recalcTimeInOut()">
+              <option value="work">Work day</option>
+              <option value="travel">Travel day</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field xs"><label>Time in</label><input id="t_timeIn" type="time" onchange="recalcTimeInOut()"></div>
+          <div class="field xs"><label>Time out</label><input id="t_timeOut" type="time" onchange="recalcTimeInOut()"></div>
+          <div class="field xs"><label>Hours</label><input id="t_hours" type="number" step="0.25"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Notes</label><input id="t_notes" placeholder="optional"></div>
+        </div>
+        <p class="small muted" id="t_calcNote" style="margin-top:-6px;">Fill in Time in/out to auto-calculate Hours, or just type Hours directly if you don't have exact times. Hours only matter for work days for overtime (1.5x/2.0x) — travel days never get OT.</p>
+        <button onclick="addTime()">Add entry</button>
+        <span id="t_status" class="status-msg"></span>
+        <p class="small muted" style="margin-top:10px;margin-bottom:0;">This stays open so you can log several days in a row — close it whenever you're done.</p>
       </div>
     </div>
   </div>
@@ -677,6 +710,8 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="toolbar">
             <span class="small muted" id="expenseSelectedCount">Check rows below to delete them in bulk.</span>
             <div class="export-actions">
+              <button class="add-trigger-btn sm" onclick="openActionModal('modal_receipt')">📸 Upload Receipt</button>
+              <button class="add-trigger-btn sm" onclick="openActionModal('modal_expense')">+ Add Expense</button>
               <button class="secondary sm" onclick="deleteSelectedExpenses()">Delete checked rows</button>
               <button class="danger" onclick="clearAllExpenses()">Clear all expenses</button>
             </div>
@@ -688,52 +723,6 @@ If you have any questions regarding these line items, please let me know.</texta
       </div>
 
       <div class="invoice-editor-right">
-        <div class="card accent" id="quickReceiptCard">
-          <div class="section-title">Upload receipt</div>
-          <p class="small muted" style="margin-top:-4px;">Snap a photo or pick a file — no need to fill anything in first. It's staged below as "Needs review" with the image attached; ask Claude in a chat (phone or desktop) to read it and it'll fill in the real vendor, amount, and category, and file the photo in Drive.</p>
-          <input id="e_quickReceiptFile_camera" type="file" accept="image/*" capture="environment" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_camera')">
-          <input id="e_quickReceiptFile_library" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_library')">
-          <div class="row" style="gap:8px;">
-            <button type="button" onclick="document.getElementById('e_quickReceiptFile_camera').value='';document.getElementById('e_quickReceiptFile_camera').click()">📷 Take Photo</button>
-            <button type="button" class="secondary" onclick="document.getElementById('e_quickReceiptFile_library').value='';document.getElementById('e_quickReceiptFile_library').click()">🖼 Choose from Library</button>
-          </div>
-          <span id="e_quickReceipt_status" class="status-msg"></span>
-        </div>
-
-        <div class="card accent">
-          <div class="section-title">Log an expense</div>
-          <div class="row">
-            <div class="field"><label>Project (optional for business expenses)</label><select id="e_project"><option value="">— none / general business —</option></select></div>
-            <div class="field sm"><label>Date</label><input id="e_date" type="date"></div>
-          </div>
-          <div class="row">
-            <div class="field"><label>Category</label>
-              <select id="e_category">
-                <option>Flight</option><option>Baggage fee</option><option>Uber/Lyft</option>
-                <option>Ground transport</option><option>Hotel</option><option>Meals</option>
-                <option>Visa fee</option><option>Supplies</option><option>Other</option>
-              </select>
-            </div>
-            <div class="field xs"><label>Amount ($)</label><input id="e_amount" type="number" step="0.01"></div>
-          </div>
-          <div class="row">
-            <div class="field"><label>Description</label><input id="e_desc" placeholder="e.g. Uber PHL airport to hotel"></div>
-          </div>
-          <div class="row">
-            <div class="field sm"><label>Classification</label>
-              <select id="e_classification">
-                <option value="billable">Billable to client</option>
-                <option value="business">Business (not billed)</option>
-                <option value="personal">Personal</option>
-                <option value="unknown">Unknown — needs review</option>
-              </select>
-            </div>
-            <div class="field"><label>Receipt (optional) — JPG, PNG, or PDF, not HEIC</label><input id="e_receiptFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf"></div>
-          </div>
-          <button onclick="addExpense()">Add expense</button>
-          <span id="e_status" class="status-msg"></span>
-        </div>
-
         <div class="card accent">
           <div class="section-title">Ask Claude</div>
           <p class="small muted" style="margin-top:-4px;">This page can't reach Drive or Gmail on its own. Type what you want pulled in, hit "Copy request," then paste it into your chat with Claude — it'll fetch the details and the expenses will show up here, ready to review.</p>
@@ -741,6 +730,59 @@ If you have any questions regarding these line items, please let me know.</texta
           <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_expense')">Copy request</button>
           <span id="askClaude_expense_status" class="status-msg"></span>
         </div>
+      </div>
+    </div>
+
+    <div class="action-modal-overlay" id="modal_receipt" onclick="if(event.target===this) closeActionModal('modal_receipt')">
+      <div class="action-modal" id="quickReceiptCard">
+        <button class="modal-close" onclick="closeActionModal('modal_receipt')">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">📸</span><h3>Upload receipt</h3></div>
+        <p class="small muted" style="margin-top:-4px;">Snap a photo or pick a file — no need to fill anything in first. It's staged below as "Needs review" with the image attached; ask Claude in a chat (phone or desktop) to read it and it'll fill in the real vendor, amount, and category, and file the photo in Drive.</p>
+        <input id="e_quickReceiptFile_camera" type="file" accept="image/*" capture="environment" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_camera')">
+        <input id="e_quickReceiptFile_library" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf" style="display:none;" onchange="stageReceiptForReview('e_quickReceiptFile_library')">
+        <div class="row" style="gap:8px;">
+          <button type="button" onclick="document.getElementById('e_quickReceiptFile_camera').value='';document.getElementById('e_quickReceiptFile_camera').click()">📷 Take Photo</button>
+          <button type="button" class="secondary" onclick="document.getElementById('e_quickReceiptFile_library').value='';document.getElementById('e_quickReceiptFile_library').click()">🖼 Choose from Library</button>
+        </div>
+        <span id="e_quickReceipt_status" class="status-msg"></span>
+      </div>
+    </div>
+
+    <div class="action-modal-overlay" id="modal_expense" onclick="if(event.target===this) closeActionModal('modal_expense')">
+      <div class="action-modal">
+        <button class="modal-close" onclick="closeActionModal('modal_expense')">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">💵</span><h3>Log an expense</h3></div>
+        <div class="row">
+          <div class="field"><label>Project (optional for business expenses)</label><select id="e_project"><option value="">— none / general business —</option></select></div>
+          <div class="field sm"><label>Date</label><input id="e_date" type="date"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Category</label>
+            <select id="e_category">
+              <option>Flight</option><option>Baggage fee</option><option>Uber/Lyft</option>
+              <option>Ground transport</option><option>Hotel</option><option>Meals</option>
+              <option>Visa fee</option><option>Supplies</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field xs"><label>Amount ($)</label><input id="e_amount" type="number" step="0.01"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Description</label><input id="e_desc" placeholder="e.g. Uber PHL airport to hotel"></div>
+        </div>
+        <div class="row">
+          <div class="field sm"><label>Classification</label>
+            <select id="e_classification">
+              <option value="billable">Billable to client</option>
+              <option value="business">Business (not billed)</option>
+              <option value="personal">Personal</option>
+              <option value="unknown">Unknown — needs review</option>
+            </select>
+          </div>
+          <div class="field"><label>Receipt (optional) — JPG, PNG, or PDF, not HEIC</label><input id="e_receiptFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf"></div>
+        </div>
+        <button onclick="addExpense()">Add expense</button>
+        <span id="e_status" class="status-msg"></span>
+        <p class="small muted" style="margin-top:10px;margin-bottom:0;">This stays open so you can log several expenses in a row — close it whenever you're done.</p>
       </div>
     </div>
   </div>
@@ -766,6 +808,7 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="toolbar">
             <span class="small muted" id="mileageSelectedCount">Check rows below to delete them in bulk.</span>
             <div class="export-actions">
+              <button class="add-trigger-btn sm" onclick="openActionModal('modal_mileage')">+ Log a Trip</button>
               <button class="secondary sm" onclick="deleteSelectedMileage()">Delete checked rows</button>
               <button class="danger" onclick="clearAllMileage()">Clear all trips</button>
             </div>
@@ -774,28 +817,30 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="empty" id="mileageEmpty" style="display:none;">No trips logged yet.</div>
         </div>
       </div>
+    </div>
 
-      <div class="invoice-editor-right">
-        <div class="card accent">
-          <div class="section-title">Log a trip</div>
-          <p class="small muted" style="margin-top:-4px;">There's no live map/route lookup here — enter addresses for your own reference and the mileage yourself (e.g. from Google Maps' "Directions" distance). The IRS rate below is locked in per-entry at whatever it's set to when you log the trip.</p>
-          <div class="row">
-            <div class="field sm"><label>Date</label><input id="m_date" type="date"></div>
-            <div class="field"><label>Project (optional)</label><select id="m_project"><option value="">— none / personal business —</option></select></div>
-          </div>
-          <div class="row">
-            <div class="field"><label>Start address</label><input id="m_start" placeholder="e.g. Home"></div>
-          </div>
-          <div class="row">
-            <div class="field"><label>End address</label><input id="m_end" placeholder="e.g. Venue / airport"></div>
-          </div>
-          <div class="row">
-            <div class="field xs"><label>Miles</label><input id="m_miles" type="number" step="0.1"></div>
-            <div class="field"><label>Purpose</label><input id="m_purpose" placeholder="e.g. Drive to site for load-in"></div>
-          </div>
-          <button onclick="addMileage()">Add trip</button>
-          <span id="m_status" class="status-msg"></span>
+    <div class="action-modal-overlay" id="modal_mileage" onclick="if(event.target===this) closeActionModal('modal_mileage')">
+      <div class="action-modal">
+        <button class="modal-close" onclick="closeActionModal('modal_mileage')">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">🚗</span><h3>Log a trip</h3></div>
+        <p class="small muted" style="margin-top:-4px;">There's no live map/route lookup here — enter addresses for your own reference and the mileage yourself (e.g. from Google Maps' "Directions" distance). The IRS rate below is locked in per-entry at whatever it's set to when you log the trip.</p>
+        <div class="row">
+          <div class="field sm"><label>Date</label><input id="m_date" type="date"></div>
+          <div class="field"><label>Project (optional)</label><select id="m_project"><option value="">— none / personal business —</option></select></div>
         </div>
+        <div class="row">
+          <div class="field"><label>Start address</label><input id="m_start" placeholder="e.g. Home"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>End address</label><input id="m_end" placeholder="e.g. Venue / airport"></div>
+        </div>
+        <div class="row">
+          <div class="field xs"><label>Miles</label><input id="m_miles" type="number" step="0.1"></div>
+          <div class="field"><label>Purpose</label><input id="m_purpose" placeholder="e.g. Drive to site for load-in"></div>
+        </div>
+        <button onclick="addMileage()">Add trip</button>
+        <span id="m_status" class="status-msg"></span>
+        <p class="small muted" style="margin-top:10px;margin-bottom:0;">This stays open so you can log several trips in a row — close it whenever you're done.</p>
       </div>
     </div>
   </div>
@@ -905,6 +950,9 @@ If you have any questions regarding these line items, please let me know.</texta
     <div class="card">
       <div class="section-title">Notes &amp; flags</div>
       <p class="small muted" style="margin-top:-4px;">Everything Claude left behind while importing or reconciling data — date-label mismatches, hour discrepancies, cross-invoice billing, invoice-number collisions, anything else worth a second look. Moved to its own tab so a long list doesn't push the Reports tab down.</p>
+      <div class="add-trigger-row" style="justify-content:flex-start;margin-bottom:6px;">
+        <button class="add-trigger-btn" onclick="openQuickNoteModal()">+ Add Note</button>
+      </div>
       <div class="row">
         <div class="field sm"><label>Project</label><select id="notes_projectFilter" onchange="renderNotesAndFlags()"><option value="">All projects</option></select></div>
         <div class="field sm"><label>Type</label>
@@ -931,6 +979,22 @@ If you have any questions regarding these line items, please let me know.</texta
       </div>
       <p class="small muted" id="notesCountSummary" style="margin-top:6px;"></p>
       <div id="notesAndFlagsList"></div>
+    </div>
+
+    <div class="action-modal-overlay" id="modal_note" onclick="if(event.target===this) closeActionModal('modal_note')">
+      <div class="action-modal">
+        <button class="modal-close" onclick="closeActionModal('modal_note')">&times;</button>
+        <div class="action-modal-header"><span class="action-modal-icon">📝</span><h3>Add a note</h3></div>
+        <p class="small muted" style="margin-top:-4px;">Notes live on a project (there's no free-floating note list) — pick which one, and this gets appended to that project's notes/flags so it shows up here going forward.</p>
+        <div class="row">
+          <div class="field"><label>Project</label><select id="qn_project"></select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Note</label><textarea id="qn_text" rows="4" placeholder="e.g. Waiting on a signed rate confirmation from the client"></textarea></div>
+        </div>
+        <button onclick="submitQuickNote()">Add note</button>
+        <span id="qn_status" class="status-msg"></span>
+      </div>
     </div>
   </div>
 
@@ -1007,30 +1071,39 @@ If you have any questions regarding these line items, please let me know.</texta
           <div class="field"><label>Existing project</label><select id="start_existingProject"></select></div>
           <button class="secondary" style="align-self:flex-end;" onclick="startInvoiceForExistingProject()">Generate invoice</button>
         </div>
-        <p class="small muted" id="noProjectsHint" style="display:none;">No projects yet — create one below, or add a client first on the "Clients" tab.</p>
+        <p class="small muted" id="noProjectsHint" style="display:none;">No projects yet — add one, or add a client first on the "Clients" tab.</p>
 
-        <div class="section-title" style="margin-top:16px;">Or start something new</div>
-        <p class="small muted" style="margin-top:-4px;">Want it pre-filled from a calendar event or an email? Type the request below, hit "Copy request," and paste it into your chat with Claude — it'll pull the details and drop them in here for you. Or fill it in manually below.</p>
-        <div class="row">
-          <div class="field"><textarea id="askClaude_invoice" rows="2" placeholder='e.g. "Add my LIV Golf Mexico City trip, Aug 5–10, for Van Wagner"'></textarea></div>
+        <div class="add-trigger-row" style="margin-top:14px;margin-bottom:0;">
+          <button class="secondary add-trigger-btn" onclick="openActionModal('modal_project')">+ New Project</button>
         </div>
-        <div class="row" style="margin-top:-4px;">
-          <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_invoice')">Copy request</button>
-          <span id="askClaude_invoice_status" class="status-msg"></span>
+      </div>
+
+      <div class="action-modal-overlay" id="modal_project" onclick="if(event.target===this) closeActionModal('modal_project')">
+        <div class="action-modal">
+          <button class="modal-close" onclick="closeActionModal('modal_project')">&times;</button>
+          <div class="action-modal-header"><span class="action-modal-icon">📁</span><h3>Start something new</h3></div>
+          <p class="small muted" style="margin-top:-4px;">Want it pre-filled from a calendar event or an email? Type the request below, hit "Copy request," and paste it into your chat with Claude — it'll pull the details and drop them in here for you. Or fill it in manually below.</p>
+          <div class="row">
+            <div class="field"><textarea id="askClaude_invoice" rows="2" placeholder='e.g. "Add my LIV Golf Mexico City trip, Aug 5–10, for Van Wagner"'></textarea></div>
+          </div>
+          <div class="row" style="margin-top:-4px;">
+            <button class="secondary sm" onclick="copyAskClaudePrompt('askClaude_invoice')">Copy request</button>
+            <span id="askClaude_invoice_status" class="status-msg"></span>
+          </div>
+          <div class="row">
+            <div class="field"><label>Name this project/invoice</label><input id="start_manualName" placeholder="e.g. Riyadh onsite engineer"></div>
+            <div class="field"><label>Client</label><select id="start_client"></select></div>
+            <div class="field sm"><label>Type (optional)</label><input id="start_manualType" list="projectTypeSuggestions" placeholder="e.g. LIV Golf"></div>
+          </div>
+          <div class="row">
+            <div class="field sm"><label>From date (optional)</label><input id="start_manualFrom" type="date"></div>
+            <div class="field sm"><label>To date (optional)</label><input id="start_manualTo" type="date"></div>
+            <p class="small muted" style="align-self:flex-end;margin-bottom:8px;">Fills in work/travel days at your default rates (first &amp; last day as travel) — edit any of it afterward.</p>
+          </div>
+          <button class="secondary" onclick="startManualProject()">Create &amp; start invoice</button>
+          <p class="small muted" id="noClientsHint" style="display:none;">Add a client first on the "Clients" tab, then come back here.</p>
+          <datalist id="projectTypeSuggestions"></datalist>
         </div>
-        <div class="row">
-          <div class="field"><label>Name this project/invoice</label><input id="start_manualName" placeholder="e.g. Riyadh onsite engineer"></div>
-          <div class="field"><label>Client</label><select id="start_client"></select></div>
-          <div class="field sm"><label>Type (optional)</label><input id="start_manualType" list="projectTypeSuggestions" placeholder="e.g. LIV Golf"></div>
-        </div>
-        <div class="row">
-          <div class="field sm"><label>From date (optional)</label><input id="start_manualFrom" type="date"></div>
-          <div class="field sm"><label>To date (optional)</label><input id="start_manualTo" type="date"></div>
-          <p class="small muted" style="align-self:flex-end;margin-bottom:8px;">Fills in work/travel days at your default rates (first &amp; last day as travel) — edit any of it afterward.</p>
-        </div>
-        <button class="secondary" onclick="startManualProject()">Create & start invoice</button>
-        <p class="small muted" id="noClientsHint" style="display:none;">Add a client first on the "Clients" tab, then come back here.</p>
-        <datalist id="projectTypeSuggestions"></datalist>
       </div>
 
       <!-- Existing invoices are opened via "Open" in the table above, not re-picked here — these
@@ -2294,6 +2367,12 @@ function loadLocal(){
     }
   }
   if(!DATA.settings) DATA.settings = { name:'', email:'', phone:'', address:'' };
+  // One-time backfill: fills in your real business info + logo if Settings > "Your info" has
+  // never been saved (or was cleared) — matches what's printed on every one of your real
+  // invoices. Only fills blank fields; never overwrites anything you've actually entered.
+  if(!DATA.settings.logo){
+    DATA.settings.logo = MW_LOGO_DATA_URL;
+  }
   if(!DATA.invoiceDefaults) DATA.invoiceDefaults = { role:'Engineer', workRate:950, workPD:70, travelRate:950, travelPD:70, ot1h:10, ot2h:12, stdHoursPerDay:8, dueDays:30, commuteBufferMin:0, nextInvoiceNumber:null, expenseNotes:'', invoiceTerms: DEFAULT_INVOICE_TERMS };
   if(DATA.invoiceDefaults.nextInvoiceNumber===undefined) DATA.invoiceDefaults.nextInvoiceNumber = null;
   if(!DATA.clients) DATA.clients = [];
@@ -2883,6 +2962,7 @@ function submitClient(){
     save(); render();
     setStatus('c_status','Client updated.', false, true);
     cancelEditClient();
+    closeActionModal('modal_client');
     return;
   }
   DATA.clients.push({ id: uid(), ...f });
@@ -2894,6 +2974,7 @@ function editClient(id){
   const c = DATA.clients.find(x=>x.id===id);
   if(!c) return;
   editingClientId = id;
+  openActionModal('modal_client');
   document.getElementById('c_name').value = c.name;
   document.getElementById('c_contactName').value = c.contactName||'';
   document.getElementById('c_invEmail').value = c.invEmail||'';
@@ -2913,6 +2994,7 @@ function cancelEditClient(){
   document.getElementById('c_formTitle').textContent = 'Add a client';
   document.getElementById('c_submitBtn').textContent = 'Add client';
   document.getElementById('c_cancelBtn').style.display = 'none';
+  closeActionModal('modal_client');
 }
 function deleteClient(id){
   const projects = DATA.projects.filter(p=>p.clientId===id);
@@ -3104,11 +3186,7 @@ function goToPanel(tabName){
 // making anyone hunt through the Expenses tab's filters/table first to find it.
 function goToQuickReceipt(){
   goToPanel('expenses');
-  const card = document.getElementById('quickReceiptCard');
-  if(!card) return;
-  card.scrollIntoView({behavior:'smooth', block:'start'});
-  card.classList.add('flash-highlight');
-  setTimeout(()=>card.classList.remove('flash-highlight'), 1600);
+  openActionModal('modal_receipt');
 }
 // Opens the invoice editor for a project with every not-yet-invoiced day/expense pre-selected
 // (that's the existing default behavior of the picker whenever it switches projects) — the
@@ -3440,8 +3518,17 @@ function startManualProject(){
   document.getElementById('start_manualType').value = '';
   document.getElementById('start_manualFrom').value = '';
   document.getElementById('start_manualTo').value = '';
+  closeActionModal('modal_project');
   if(dayCount) showGlobalInfo(`Created "${projectLabel(p)}" — ${dayCount} day(s) added at your default rates. Adjust anything in the picker, then add expenses.`);
   document.getElementById('invoicePreview').scrollIntoView({behavior:'smooth', block:'start'});
+}
+// One-tap path to the "new project" popup from anywhere (e.g. the Projects tab, which doesn't
+// own this form — it lives with the invoice-starting flow so a brand-new project can drop
+// straight into an invoice). Switches to the Invoices tab first so the modal has a sensible
+// tab active underneath it, then opens the popup.
+function openNewProjectModal(){
+  goToPanel('invoice');
+  openActionModal('modal_project');
 }
 
 // ---------- Time ----------
@@ -5716,6 +5803,55 @@ function printNotes(){
 // why). Usage mirrors confirm()'s "if(!confirm(msg)) return; ...rest" pattern, just inverted
 // into a callback: appConfirm(msg, ()=>{ ...rest }).
 let _appConfirmCallback = null;
+// ---------- Quick note (Notes & Flags "+ Add Note") ----------
+// Notes here aren't a standalone list — they're the importNotes/notes/description text field
+// already living on a project/invoice/time/expense record (see findNoteEntity/noteFieldName
+// above). A manually-added note needs a home, so this attaches to a chosen project's
+// importNotes, appending (never overwriting) so nothing existing is lost.
+function openQuickNoteModal(){
+  const sel = document.getElementById('qn_project');
+  if(sel){
+    const opts = DATA.projects.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    sel.innerHTML = opts.length
+      ? opts.map(p=>`<option value="${p.id}">${escapeHtml(projectLabel(p))}</option>`).join('')
+      : '<option value="">— no projects yet —</option>';
+  }
+  document.getElementById('qn_text').value = '';
+  setStatus('qn_status','');
+  openActionModal('modal_note');
+}
+function submitQuickNote(){
+  const projectId = document.getElementById('qn_project').value;
+  const text = document.getElementById('qn_text').value.trim();
+  if(!projectId){ setStatus('qn_status','Add a project first (Projects tab), then come back here.', true); return; }
+  if(!text){ setStatus('qn_status','Write something to note first.', true); return; }
+  const p = DATA.projects.find(x=>x.id===projectId);
+  if(!p){ setStatus('qn_status','That project could not be found — try reopening this popup.', true); return; }
+  const stamp = new Date().toISOString().slice(0,10);
+  const entry = `[${stamp}] ${text}`;
+  p.importNotes = p.importNotes ? `${p.importNotes}\n${entry}` : entry;
+  save(); render();
+  document.getElementById('qn_text').value = '';
+  setStatus('qn_status','Note added.', false, true);
+}
+// ---------- Add-item popups (generic open/close) ----------
+function openActionModal(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeActionModal(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('open');
+  if(!document.querySelector('.action-modal-overlay.open')) document.body.style.overflow = '';
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Escape') return;
+  document.querySelectorAll('.action-modal-overlay.open').forEach(o=>o.classList.remove('open'));
+  document.body.style.overflow = '';
+});
 function appConfirm(message, onConfirm){
   _appConfirmCallback = onConfirm;
   document.getElementById('appConfirmMessage').textContent = message;
