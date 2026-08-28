@@ -1,1 +1,1033 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Family Budget Tracker</title>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#1b1e23; --ink:#e8eaed; --muted:#98a0ab; --line:#3a3f47;
+  --accent:#eab308; --accent-ink:#20240a; --accent-soft:#332c14;
+  --good:#4ade80; --good-soft:#1c2b21; --warn:#fb923c; --warn-soft:#3a2a1c;
+  --danger:#f87171; --danger-soft:#3a1f1f;
+  --info:#60a5fa; --info-soft:#16233a; --purple:#c084fc; --purple-soft:#2a1f3a;
+  --card:#24272d; --field-bg:#2a2e35;
+  /* Validated categorical palette (dataviz skill reference, dark steps) — fixed order,
+     assigned to household members 1:1, never reassigned/cycled when a member is filtered out. */
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;}
+.layout{display:flex;max-width:1300px;margin:0 auto;min-height:100vh;}
+.sidebar{width:190px;flex-shrink:0;padding:20px 12px;border-right:1px solid var(--line);}
+.sidebar .brand{padding:0 8px 14px;margin-bottom:6px;border-bottom:1px solid var(--line);}
+.sidebar h1{font-size:15px;font-weight:800;line-height:1.3;margin:0;padding:0;letter-spacing:-.01em;overflow-wrap:break-word;}
+.sidebar h1 span{display:block;color:var(--accent);}
+.sidebar .sub{font-size:11px;padding:0;margin:4px 0 0;color:var(--muted);}
+.app{flex:1;min-width:0;padding:20px 24px 60px;}
+.pagesub{color:var(--muted);margin:0 0 18px;font-size:13px;}
+.tabs{display:flex;flex-direction:column;gap:2px;}
+.tab{padding:9px 12px;cursor:pointer;border-radius:7px;font-size:13px;color:var(--muted);font-weight:500;}
+.tab.active{color:var(--accent);background:var(--accent-soft);font-weight:700;}
+.panel{display:none;}
+.panel.active{display:block;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px;}
+.card.accent{border-color:var(--good);background:var(--good-soft);}
+.card.compact{padding:10px 14px;margin-bottom:10px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end;}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em;}
+input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--field-bg);color:var(--ink);font-family:inherit;}
+input[type="checkbox"], input[type="radio"]{width:auto;padding:0;flex:0 0 auto;}
+textarea{resize:vertical;min-height:50px;}
+.field{flex:1;min-width:140px;}
+.field.sm{max-width:120px;}
+.field.xs{max-width:90px;}
+button{cursor:pointer;border:none;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;background:var(--accent);color:var(--accent-ink);}
+button.secondary{background:var(--card);color:var(--accent);border:1px solid var(--accent);font-weight:600;}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500;}
+button.danger{background:var(--card);color:#f87171;border:1px solid #6b2626;font-weight:500;padding:5px 9px;font-size:12px;}
+button.sm{padding:5px 10px;font-size:12px;}
+button:disabled{opacity:.5;cursor:default;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+.table-wrap{overflow-x:auto;}
+th{text-align:left;color:#c3c9d1;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--line);padding:8px 8px;}
+td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent);}
+.empty{color:var(--muted);font-style:italic;padding:14px 4px;font-size:13px;}
+.section-title{font-size:13px;font-weight:700;margin:0 0 10px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+@media (max-width:900px){.grid2,.grid3{grid-template-columns:1fr;}}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+.muted{color:var(--muted);}
+.right{text-align:right;}
+.small{font-size:12px;}
+.total-row td{font-weight:700;border-top:2px solid var(--ink);}
+/* ---- Stat tiles ---- */
+.stat-tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+.stat-tile .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px;}
+.stat-tile .stat-value{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
+.stat-tile .stat-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+/* ---- Bars (budget-vs-actual, spending-by-member) ---- */
+.bar-row{display:grid;grid-template-columns:150px 1fr 90px;gap:10px;align-items:center;margin-bottom:7px;}
+.bar-row .bar-label{font-size:12px;display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bar-track{background:var(--line);border-radius:5px;height:16px;overflow:hidden;position:relative;}
+.bar-fill{height:100%;border-radius:5px;min-width:3px;}
+.bar-row .bar-amt{font-size:12px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:0 0 auto;}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:8px;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+/* ---- Status pills ---- */
+.status-pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+.status-pill.income{background:var(--good-soft);color:var(--good);}
+.status-pill.expense{background:var(--warn-soft);color:var(--warn);}
+.status-pill.fixed{background:var(--info-soft);color:var(--info);}
+.status-pill.variable{background:var(--purple-soft);color:var(--purple);}
+.status-pill.estimate{background:transparent;color:var(--muted);border:1px dashed var(--line);text-transform:none;font-weight:600;}
+/* ---- Modals ---- */
+.action-modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,11,13,.72);backdrop-filter:blur(2px);z-index:250;align-items:flex-start;justify-content:center;padding:6vh 20px 20px;overflow-y:auto;}
+.action-modal-overlay.open{display:flex;}
+.action-modal{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px 20px;width:100%;max-width:480px;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+.action-modal-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-right:26px;}
+.action-modal-icon{font-size:19px;line-height:1;}
+.action-modal-header h3{margin:0;font-size:15px;font-weight:700;}
+.action-modal .modal-close{position:absolute;top:14px;right:14px;background:transparent;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:6px;font-weight:400;}
+.add-trigger-btn{display:inline-flex;align-items:center;gap:6px;}
+.member-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:var(--field-bg);border:1px solid var(--line);font-size:12px;margin:2px 4px 2px 0;}
+</style>
+</head>
+<body>
 
+<!-- Sign-in gate — same Supabase login as the business Expense Tracker (mikew84@gmail.com / same password) -->
+<div class="action-modal-overlay open" id="authOverlay" style="z-index:400;">
+  <div class="action-modal" style="max-width:360px;">
+    <div class="action-modal-header"><span class="action-modal-icon">🔒</span><h3>Sign in</h3></div>
+    <p class="small muted" style="margin-top:-6px;">Family Budget Tracker — same login as the Expense Tracker.</p>
+    <div class="row"><div class="field"><label>Email</label><input id="auth_email" type="email" value="mikew84@gmail.com" onkeydown="if(event.key==='Enter')document.getElementById('auth_password').focus()"></div></div>
+    <div class="row"><div class="field"><label>Password</label><input id="auth_password" type="password" onkeydown="if(event.key==='Enter')doSignIn()"></div></div>
+    <div id="auth_error" class="small" style="display:none; color:var(--danger); margin-bottom:10px;"></div>
+    <button id="auth_submit" onclick="doSignIn()" style="width:100%;">Sign in</button>
+  </div>
+</div>
+
+<div class="layout" id="appRoot" style="display:none;">
+  <div class="sidebar">
+    <div class="brand">
+      <h1>Family<span>Budget Tracker</span></h1>
+      <p class="sub" id="syncStatus">Synced to the cloud</p>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="dashboard" onclick="goToPanel('dashboard')">Dashboard</div>
+      <div class="tab" data-tab="household" onclick="goToPanel('household')">Household</div>
+      <div class="tab" data-tab="categories" onclick="goToPanel('categories')">Budget &amp; Categories</div>
+      <div class="tab" data-tab="transactions" onclick="goToPanel('transactions')">Transactions</div>
+      <div class="tab" data-tab="subscriptions" onclick="goToPanel('subscriptions')">Subscriptions</div>
+      <div class="tab" data-tab="investments" onclick="goToPanel('investments')">Investments</div>
+      <div class="tab" data-tab="reports" onclick="goToPanel('reports')">Reports</div>
+    </div>
+    <button class="ghost sm" style="margin-top:14px;width:100%;" onclick="doSignOut()">Sign out</button>
+  </div>
+  <div class="app">
+
+    <!-- DASHBOARD -->
+    <div class="panel active" data-panel="dashboard">
+      <p class="pagesub">A month-at-a-glance view. Pick a month below — everything on this tab updates to it.</p>
+      <div class="row">
+        <div class="field sm"><label>Month</label><select id="db_month" onchange="renderDashboard()"></select></div>
+      </div>
+      <div class="grid3" style="margin-bottom:14px;">
+        <div class="stat-tile"><div class="stat-label">Income (budgeted)</div><div class="stat-value" id="db_incomeBudget">$0</div><div class="stat-sub" id="db_incomeActual">actual: $0</div></div>
+        <div class="stat-tile"><div class="stat-label">Expenses (budgeted)</div><div class="stat-value" id="db_expenseBudget">$0</div><div class="stat-sub" id="db_expenseActual">actual: $0</div></div>
+        <div class="stat-tile"><div class="stat-label">Balance (actual)</div><div class="stat-value" id="db_balance">$0</div><div class="stat-sub" id="db_balanceSub">income − expenses this month</div></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Budget vs. actual by category</div>
+        <p class="small muted" style="margin-top:-4px;">Green = under 90% of budget, amber = 90–100%, red = over budget. A dashed border on the track means that category is marked "Estimate" — treat the target loosely.</p>
+        <div id="db_categoryBars"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="section-title">Spending by household member</div>
+          <p class="small muted" style="margin-top:-4px;">Transactions tagged to a person this month. Untagged/household-wide spending isn't shown here.</p>
+          <div id="db_memberBars"></div>
+          <div class="legend" id="db_memberLegend"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Subscriptions</div>
+          <p class="small muted" style="margin-top:-4px;">Recurring charges — a good place to spot something worth canceling.</p>
+          <div id="db_subsSummary"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Recent transactions</div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Person</th><th>Description</th><th class="right">Amount</th></tr></thead><tbody id="db_recentBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- HOUSEHOLD -->
+    <div class="panel" data-panel="household">
+      <p class="pagesub">Everyone spending gets tracked against — kids, pets, you and your spouse. Add anyone else here (grandparents you gift for, a sitter budget, etc.). Each person gets a fixed color used everywhere else in the app.</p>
+      <div class="card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">Household members</div><button class="add-trigger-btn sm" onclick="openMemberModal()">+ Add Person / Pet</button></div>
+        <div class="table-wrap"><table><thead><tr><th></th><th>Name</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="householdBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- BUDGET & CATEGORIES -->
+    <div class="panel" data-panel="categories">
+      <p class="pagesub">Your monthly targets, seeded from the budget sheet you sent. "Fixed" categories don't move month to month; "Variable" categories you expect to change; "Estimate" is your best guess and not something you're tracking closely yet — edit any of these as you get a clearer number.</p>
+      <div class="card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">Income sources</div><button class="add-trigger-btn sm" onclick="openCategoryModal('income')">+ Add Income Source</button></div>
+        <p class="small muted" style="margin-top:-4px;">These mirror the clients on your business tracker — actual amounts fluctuate job to job. Once this is wired up to Supabase, actuals here can pull straight from payments logged over there instead of being re-entered.</p>
+        <div class="table-wrap"><table><thead><tr><th>Source</th><th class="right">Monthly target</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="incomeCatBody"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">Expense categories</div><button class="add-trigger-btn sm" onclick="openCategoryModal('expense')">+ Add Expense Category</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Category</th><th class="right">Monthly target</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="expenseCatBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="panel" data-panel="transactions">
+      <p class="pagesub">Every dollar in or out. Tag a person when it's worth remembering who it was for — Beckett's baseball, Lincoln's dentist, Brooke's glasses — so it rolls up on the Dashboard and in Reports.</p>
+      <div class="card compact">
+        <div class="row">
+          <div class="field sm"><label>Category</label><select id="tf_category" onchange="renderTransactions()"><option value="">All</option></select></div>
+          <div class="field sm"><label>Person</label><select id="tf_member" onchange="renderTransactions()"><option value="">All</option></select></div>
+          <div class="field sm"><label>Month</label><select id="tf_month" onchange="renderTransactions()"></select></div>
+          <button class="ghost sm" style="align-self:flex-end;" onclick="clearTxnFilters()">Clear filters</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="section-title" style="margin:0;">Transactions</div>
+          <div class="export-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input id="txnImportFile" type="file" accept=".csv" onchange="importTxnCsv(this)" style="display:none;">
+            <button class="secondary sm" onclick="document.getElementById('txnImportFile').value='';document.getElementById('txnImportFile').click()">Import CSV</button>
+            <button class="secondary sm" onclick="exportTxnCsv()">Export CSV</button>
+            <button class="add-trigger-btn sm" onclick="openTxnModal()">+ Add Transaction</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Kind</th><th>Category</th><th>Person</th><th>Description</th><th class="right">Amount</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div>
+        <div class="empty" id="txnEmpty" style="display:none;">No transactions logged yet.</div>
+      </div>
+    </div>
+
+    <!-- SUBSCRIPTIONS -->
+    <div class="panel" data-panel="subscriptions">
+      <p class="pagesub">Recurring charges in one place — the thing Rocket Money and similar apps do well. Flag anything you're on the fence about with "Worth reviewing" so it's easy to find later.</p>
+      <div class="card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">Recurring subscriptions</div><button class="add-trigger-btn sm" onclick="openSubModal()">+ Add Subscription</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly cost</th><th>Category</th><th>Next charge</th><th>Flag</th><th></th></tr></thead><tbody id="subBody"></tbody></table></div>
+        <div class="empty" id="subEmpty" style="display:none;">No subscriptions logged yet.</div>
+      </div>
+      <div class="card accent">
+        <div class="section-title">Total recurring spend</div>
+        <div style="font-size:22px;font-weight:800;" id="subTotalMonthly">$0/mo</div>
+        <p class="small muted" style="margin-bottom:0;" id="subFlaggedNote"></p>
+      </div>
+    </div>
+
+    <!-- INVESTMENTS -->
+    <div class="panel" data-panel="investments">
+      <p class="pagesub">Real balances pulled from statements — Vanguard for now. This isn't a live feed; update an account's value here whenever a new statement lands.</p>
+      <div class="grid3" style="margin-bottom:14px; grid-template-columns:repeat(4,1fr);">
+        <div class="stat-tile"><div class="stat-label">Total across all accounts</div><div class="stat-value" id="inv_total">$0</div><div class="stat-sub" id="inv_asOf">as of —</div></div>
+        <div class="stat-tile"><div class="stat-label">Cash (bank + Vanguard)</div><div class="stat-value" id="inv_cashTotal">$0</div><div class="stat-sub">UniWyo checking/savings + Vanguard Cash Plus</div></div>
+        <div class="stat-tile"><div class="stat-label">Brokerage &amp; retirement</div><div class="stat-value" id="inv_cashBrokerage">$0</div><div class="stat-sub">Vanguard Individual Brokerage + Roth IRA</div></div>
+        <div class="stat-tile"><div class="stat-label">Kids' 529s</div><div class="stat-value" id="inv_529total">$0</div><div class="stat-sub">Beckett + Lincoln + Parker combined</div></div>
+      </div>
+      <div class="grid3" style="margin-bottom:14px; grid-template-columns:1fr;">
+        <div class="stat-tile"><div class="stat-label">Kids' Trump Accounts</div><div class="stat-value" id="inv_trumpTotal">$0</div><div class="stat-sub">Beckett + Lincoln + Parker — Beckett/Lincoln reflect today's $1,000 contribution, not yet posted on a statement</div></div>
+      </div>
+      <div class="card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">Accounts</div><button class="add-trigger-btn sm" onclick="openInvModal()">+ Add Account</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Institution</th><th>Account</th><th>Owner / Beneficiary</th><th>Type</th><th class="right">Value</th><th>As of</th><th></th></tr></thead><tbody id="invBody"></tbody></table></div>
+        <div class="empty" id="invEmpty" style="display:none;">No investment accounts logged yet.</div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="panel" data-panel="reports">
+      <p class="pagesub">A simple month or year rollup — good for a quick "are we on track" check with your wife.</p>
+      <div class="row">
+        <div class="field sm"><label>Year</label><select id="r_year" onchange="renderReportsTab()"></select></div>
+        <div class="field sm"><label>Month</label><select id="r_month" onchange="renderReportsTab()"><option value="">Full year</option></select></div>
+        <button class="secondary" onclick="exportReportCsv()">Export report as CSV</button>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="section-title">By category</div>
+          <div class="table-wrap"><table id="reportCatTable"><thead><tr><th>Category</th><th class="right">Budgeted</th><th class="right">Actual</th><th class="right">Diff</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="section-title">By person</div>
+          <div class="table-wrap"><table id="reportMemberTable"><thead><tr><th>Person</th><th class="right">Spent on them</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Member modal -->
+<div class="action-modal-overlay" id="modal_member" onclick="if(event.target===this) closeModal('modal_member')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_member')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">👪</span><h3 id="memberModalTitle">Add a household member</h3></div>
+    <input type="hidden" id="mem_id">
+    <div class="row"><div class="field"><label>Name</label><input id="mem_name" placeholder="e.g. Beckett"></div></div>
+    <div class="row">
+      <div class="field"><label>Type</label><select id="mem_type"><option value="adult">Adult</option><option value="child">Kid</option><option value="pet">Pet</option><option value="other">Other</option></select></div>
+    </div>
+    <div class="row"><div class="field"><label>Notes (optional)</label><input id="mem_notes" placeholder="e.g. allowance $5/week"></div></div>
+    <button onclick="submitMember()">Save</button>
+  </div>
+</div>
+
+<!-- Category modal -->
+<div class="action-modal-overlay" id="modal_category" onclick="if(event.target===this) closeModal('modal_category')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_category')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">🗂️</span><h3 id="categoryModalTitle">Add a category</h3></div>
+    <input type="hidden" id="cat_id"><input type="hidden" id="cat_kind">
+    <div class="row"><div class="field"><label>Name</label><input id="cat_name" placeholder="e.g. Groceries"></div></div>
+    <div class="row">
+      <div class="field sm"><label>Monthly target</label><input id="cat_target" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field sm"><label>Type</label><select id="cat_flex"><option value="fixed">Fixed</option><option value="variable">Variable</option><option value="estimate">Estimate</option></select></div>
+    </div>
+    <div class="row"><div class="field"><label>Notes (optional)</label><input id="cat_notes" placeholder="e.g. fluctuates seasonally"></div></div>
+    <button onclick="submitCategory()">Save</button>
+  </div>
+</div>
+
+<!-- Transaction modal -->
+<div class="action-modal-overlay" id="modal_txn" onclick="if(event.target===this) closeModal('modal_txn')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_txn')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">💵</span><h3>Add a transaction</h3></div>
+    <input type="hidden" id="txn_id">
+    <div class="row">
+      <div class="field sm"><label>Date</label><input id="txn_date" type="date"></div>
+      <div class="field sm"><label>Kind</label><select id="txn_kind" onchange="populateCategorySelect('txn_category', this.value)"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Category</label><select id="txn_category"></select></div>
+      <div class="field"><label>Person (optional)</label><select id="txn_member"><option value="">Household / unassigned</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Description</label><input id="txn_desc" placeholder="e.g. Beckett baseball registration"></div>
+      <div class="field sm"><label>Amount</label><input id="txn_amount" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <button onclick="submitTxn()">Save</button>
+  </div>
+</div>
+
+<!-- Subscription modal -->
+<div class="action-modal-overlay" id="modal_sub" onclick="if(event.target===this) closeModal('modal_sub')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_sub')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">🔁</span><h3>Add a subscription</h3></div>
+    <input type="hidden" id="sub_id">
+    <div class="row"><div class="field"><label>Name</label><input id="sub_name" placeholder="e.g. Netflix"></div></div>
+    <div class="row">
+      <div class="field sm"><label>Amount</label><input id="sub_amount" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field sm"><label>Cadence</label><select id="sub_cadence"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Category</label><select id="sub_category"></select></div>
+      <div class="field sm"><label>Next charge date</label><input id="sub_next" type="date"></div>
+    </div>
+    <div class="row"><div class="field"><label><input type="checkbox" id="sub_flag" style="width:auto;display:inline-block;margin-right:6px;">Worth reviewing / maybe cancel</label></div></div>
+    <button onclick="submitSub()">Save</button>
+  </div>
+</div>
+
+<!-- Investment account modal -->
+<div class="action-modal-overlay" id="modal_inv" onclick="if(event.target===this) closeModal('modal_inv')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_inv')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">📈</span><h3 id="invModalTitle">Add an investment account</h3></div>
+    <input type="hidden" id="inv_id">
+    <div class="row">
+      <div class="field"><label>Institution</label><input id="inv_institution" placeholder="e.g. Vanguard"></div>
+      <div class="field"><label>Account name</label><input id="inv_name" placeholder="e.g. Individual Brokerage"></div>
+    </div>
+    <div class="row">
+      <div class="field sm"><label>Last 4 / account #</label><input id="inv_last4" placeholder="e.g. 8198"></div>
+      <div class="field sm"><label>Type</label><select id="inv_kind"><option value="brokerage">Brokerage</option><option value="cash">Cash</option><option value="529">529 Plan</option><option value="retirement">Retirement</option><option value="trump">Trump Account</option><option value="other">Other</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Owner / Beneficiary</label><select id="inv_owner"></select></div>
+      <div class="field sm"><label>Value</label><input id="inv_value" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="row">
+      <div class="field sm"><label>As of</label><input id="inv_asof" type="date"></div>
+      <div class="field"><label>Notes (optional)</label><input id="inv_notes" placeholder="e.g. principal/earnings split"></div>
+    </div>
+    <button onclick="submitInv()">Save</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ---------- Supabase wiring ----------
+// Same Supabase project as the business Expense Tracker (cpwovkvtuqjarvpfxtxz), separate table
+// (personal_tracker_data) and separate login gate. Sign in with the same email/password as the
+// business tracker (mikew84@gmail.com) — same Supabase Auth user, just a different data row.
+const SUPABASE_URL = 'https://cpwovkvtuqjarvpfxtxz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwd292a3Z0dXFqYXJ2cGZ4dHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MDQ0NTksImV4cCI6MjEwMjk4MDQ1OX0.6RVCbKWm7njrd9iyzGoZKG1ptfpMaGcm6YalbYzgz3s';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUserId = null;
+let cloudSaveTimer = null;
+
+function showAuthError(msg){
+  const el = document.getElementById('auth_error');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+async function doSignIn(){
+  const email = document.getElementById('auth_email').value.trim();
+  const password = document.getElementById('auth_password').value;
+  if(!email || !password){ showAuthError('Enter your email and password.'); return; }
+  const btn = document.getElementById('auth_submit');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign in';
+  if(error){ showAuthError(error.message || 'Sign-in failed.'); return; }
+  await onSignedIn(data.session.user.id);
+}
+async function doSignOut(){
+  await sb.auth.signOut();
+  currentUserId = null;
+  document.getElementById('authOverlay').classList.add('open');
+  document.getElementById('appRoot').style.display = 'none';
+}
+async function onSignedIn(userId){
+  currentUserId = userId;
+  document.getElementById('authOverlay').classList.remove('open');
+  document.getElementById('appRoot').style.display = '';
+  await load();
+  populateMemberSelect('txn_member', true);
+  renderDashboard();
+}
+async function initAuth(){
+  const { data } = await sb.auth.getSession();
+  if(data && data.session){
+    await onSignedIn(data.session.user.id);
+  } else {
+    document.getElementById('authOverlay').classList.add('open');
+    document.getElementById('appRoot').style.display = 'none';
+  }
+}
+const MEMBER_COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)','var(--s8)'];
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function defaultData(){
+  return {
+    members: [
+      {id:'mem_michael', name:'Michael', type:'adult', notes:''},
+      {id:'mem_brooke', name:'Brooke', type:'adult', notes:'Wife'},
+      {id:'mem_beckett', name:'Beckett', type:'child', notes:'Son'},
+      {id:'mem_lincoln', name:'Lincoln', type:'child', notes:'Son'},
+      {id:'mem_parker', name:'Parker', type:'child', notes:'Daughter'},
+      {id:'mem_wylie', name:'Wylie', type:'pet', notes:'Dog'},
+      {id:'mem_rue', name:'Rue', type:'pet', notes:'Dog'}
+    ],
+    categories: [
+      // Income — seeded from the budget sheet's monthly average. Fluctuates with real client work,
+      // so these are placeholders until this is wired up to read actuals from the business tracker.
+      {id:'cat_inc_vwlg', name:'Van Wagner - LivGolf', kind:'income', monthlyTarget:15616, flex:'estimate', notes:'Ties to business tracker — fluctuates by event schedule.'},
+      {id:'cat_inc_vwmlb', name:'Van Wagner - MLB', kind:'income', monthlyTarget:7040, flex:'estimate', notes:'Ties to business tracker.'},
+      {id:'cat_inc_pjam', name:'Basketball Travelers (PJam)', kind:'income', monthlyTarget:0, flex:'estimate', notes:''},
+      {id:'cat_inc_yankees', name:'Yankees', kind:'income', monthlyTarget:900, flex:'estimate', notes:''},
+      {id:'cat_inc_promedia', name:'Pro Media Group', kind:'income', monthlyTarget:5210, flex:'estimate', notes:''},
+      {id:'cat_inc_gemstone', name:'Gemstone Media - Orioles', kind:'income', monthlyTarget:1467, flex:'estimate', notes:''},
+      {id:'cat_inc_rays', name:'Rays Severance', kind:'income', monthlyTarget:5643, flex:'estimate', notes:'One-time/winding down, not ongoing.'},
+      {id:'cat_inc_other', name:'Other income', kind:'income', monthlyTarget:880, flex:'variable', notes:''},
+      // Expenses
+      {id:'cat_mortgage', name:'Mortgage', kind:'expense', monthlyTarget:2080, flex:'fixed', notes:''},
+      {id:'cat_solar', name:'Empower - Solar/Home', kind:'expense', monthlyTarget:723, flex:'fixed', notes:''},
+      {id:'cat_nissan', name:'Nissan Payment', kind:'expense', monthlyTarget:656, flex:'fixed', notes:''},
+      {id:'cat_gingerbread', name:'Gingerbread - Education', kind:'expense', monthlyTarget:880, flex:'fixed', notes:'Pauses over summer.'},
+      {id:'cat_groceries', name:'Groceries', kind:'expense', monthlyTarget:400, flex:'estimate', notes:'You flagged this as a rough number, not tracked closely yet.'},
+      {id:'cat_gas', name:'Gas', kind:'expense', monthlyTarget:200, flex:'estimate', notes:''},
+      {id:'cat_gym', name:'Gym/Health', kind:'expense', monthlyTarget:45, flex:'variable', notes:''},
+      {id:'cat_home', name:'Home', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
+      {id:'cat_carins', name:'Car Insurance', kind:'expense', monthlyTarget:544, flex:'fixed', notes:''},
+      {id:'cat_healthins', name:'Health Insurance', kind:'expense', monthlyTarget:2120, flex:'estimate', notes:'Rate changed mid-year on the sheet — confirm current premium.'},
+      {id:'cat_dentalins', name:'Dental Insurance', kind:'expense', monthlyTarget:36, flex:'fixed', notes:''},
+      {id:'cat_fkc', name:'Florida Kid Care (Beck/Linc)', kind:'expense', monthlyTarget:262, flex:'estimate', notes:''},
+      {id:'cat_summercamp', name:'Kids Summer Camp', kind:'expense', monthlyTarget:1230, flex:'estimate', notes:'Seasonal, not a real monthly cost.'},
+      {id:'cat_pets', name:'Pets', kind:'expense', monthlyTarget:315, flex:'variable', notes:''},
+      {id:'cat_shopping', name:'Shopping', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
+      {id:'cat_entertainment', name:'Entertainment', kind:'expense', monthlyTarget:100, flex:'variable', notes:''},
+      {id:'cat_transportation', name:'Transportation', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
+      {id:'cat_travel', name:'Travel', kind:'expense', monthlyTarget:150, flex:'estimate', notes:''},
+      {id:'cat_bizsoftware', name:'Business Software (Fresh/Found/Google)', kind:'expense', monthlyTarget:40, flex:'fixed', notes:'Double-check this shouldn’t just live on the business tracker instead.'},
+      {id:'cat_utilities', name:'Utilities', kind:'expense', monthlyTarget:225, flex:'fixed', notes:''},
+      {id:'cat_cell', name:'Cell Phone', kind:'expense', monthlyTarget:224, flex:'fixed', notes:''},
+      {id:'cat_netflix', name:'Netflix', kind:'expense', monthlyTarget:10, flex:'fixed', notes:'Also tracked as a subscription below.'},
+      {id:'cat_401k', name:'401K', kind:'expense', monthlyTarget:300, flex:'fixed', notes:''},
+      {id:'cat_savings', name:'Savings (Kids 529, Family Wealth)', kind:'expense', monthlyTarget:150, flex:'fixed', notes:''},
+      {id:'cat_othernontracked', name:'Other / random', kind:'expense', monthlyTarget:542, flex:'estimate', notes:'e.g. therapy, birthdays, one-off trips.'}
+    ],
+    transactions: [],
+    subscriptions: [
+      {id:'sub_netflix', name:'Netflix', amount:10, cadence:'monthly', categoryId:'cat_netflix', nextDate:'', flagged:false, notes:''}
+    ],
+    // Real Vanguard balances, pulled straight from the account statements. Not on a live feed —
+    // update these by hand whenever a new statement comes in.
+    investments: [
+      {id:'inv_cashplus', institution:'Vanguard', name:'Cash Plus Account', accountLast4:'8865', kind:'cash', owner:'Michael', value:18627.54, asOf:'2026-07-31', notes:''},
+      {id:'inv_brokerage', institution:'Vanguard', name:'Individual Brokerage', accountLast4:'8198', kind:'brokerage', owner:'Michael', value:19713.49, asOf:'2026-07-31', notes:''},
+      {id:'inv_529_beckett', institution:'Vanguard', name:'529 College Savings Plan', accountLast4:'3433-01', kind:'529', owner:'Beckett', value:32882.78, asOf:'2026-06-30', notes:'Principal $21,850.00 / earnings $11,032.78.'},
+      {id:'inv_529_lincoln', institution:'Vanguard', name:'529 College Savings Plan', accountLast4:'3433-02', kind:'529', owner:'Lincoln', value:35334.68, asOf:'2026-06-30', notes:'Principal $21,850.00 / earnings $13,484.68.'},
+      {id:'inv_529_parker', institution:'Vanguard', name:'529 College Savings Plan', accountLast4:'3433-03', kind:'529', owner:'Parker', value:11711.88, asOf:'2026-06-30', notes:'Principal $10,150.00 / earnings $1,561.88.'},
+      // UniWyo bank accounts — 2 accounts, pulled from the 7/31/26 statements.
+      {id:'inv_uniwyo_savings', institution:'UniWyo Fed Credit Union', name:'Share Savings', accountLast4:'5384', kind:'cash', owner:'Household', value:5.00, asOf:'2026-07-31', notes:'Joint account with Brooke.'},
+      {id:'inv_uniwyo_checking', institution:'UniWyo Fed Credit Union', name:'High Dividend Checking', accountLast4:'5384', kind:'cash', owner:'Household', value:3957.55, asOf:'2026-07-31', notes:'Main joint checking — most day-to-day spending runs through here.'},
+      {id:'inv_uniwyo_roth', institution:'UniWyo Fed Credit Union', name:'Roth IRA Share', accountLast4:'5384', kind:'retirement', owner:'Michael', value:1008.58, asOf:'2026-07-31', notes:''},
+      {id:'inv_uniwyo_savings2', institution:'UniWyo Fed Credit Union', name:'Savings', accountLast4:'2545', kind:'cash', owner:'Household', value:5.03, asOf:'2026-07-31', notes:'Secondary account, mostly a pass-through (Found deposits sweep into the joint checking).'},
+      {id:'inv_uniwyo_checking2', institution:'UniWyo Fed Credit Union', name:'Simple Checking', accountLast4:'2545', kind:'cash', owner:'Household', value:9.96, asOf:'2026-07-31', notes:'Pass-through — balance stays near zero by design.'},
+      // Trump Accounts (federal kids' investment program, Robinhood Securities as Trustee).
+      {id:'inv_trump_beckett', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'2970', kind:'trump', owner:'Beckett', value:1000.00, asOf:'2026-08-28', notes:'$1,000 Pilot Program contribution made 8/28/26 — not posted/settled yet on a statement. Update once it clears.'},
+      {id:'inv_trump_lincoln', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'2215', kind:'trump', owner:'Lincoln', value:1000.00, asOf:'2026-08-28', notes:'$1,000 Pilot Program contribution made 8/28/26 — not posted/settled yet on a statement. Update once it clears.'},
+      {id:'inv_trump_parker', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'8263', kind:'trump', owner:'Parker', value:994.86, asOf:'2026-07-31', notes:'$1,000 Pilot Program contribution, invested in SPDR Portfolio S&P 500 ETF (SPYM); value reflects the 7/31/26 statement.'}
+    ]
+  };
+}
+let DATA = null;
+async function load(){
+  try{
+    const { data, error } = await sb.from('personal_tracker_data').select('data').eq('user_id', currentUserId).maybeSingle();
+    if(error) throw error;
+    DATA = (data && data.data) ? data.data : defaultData();
+  }catch(e){
+    console.error('cloud load failed, using defaults', e);
+    setSyncStatus('Could not load from the cloud — showing local defaults. Changes won\'t save until this is fixed.', true);
+    DATA = defaultData();
+  }
+  if(!DATA.members) DATA.members = [];
+  if(!DATA.categories) DATA.categories = [];
+  if(!DATA.transactions) DATA.transactions = [];
+  if(!DATA.subscriptions) DATA.subscriptions = [];
+  if(!DATA.investments) DATA.investments = [];
+}
+function setSyncStatus(msg, isError){
+  const el = document.getElementById('syncStatus');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+function save(){
+  // Debounced cloud save — several UI actions can call save() in quick succession
+  // (e.g. editing a row then re-rendering), so this coalesces them into one upsert.
+  if(!currentUserId) return;
+  setSyncStatus('Saving…', false);
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(async () => {
+    const { error } = await sb.from('personal_tracker_data').upsert({ user_id: currentUserId, data: DATA, updated_at: new Date().toISOString() });
+    if(error){ console.error('cloud save failed', error); setSyncStatus('Save failed — check your connection and try again.', true); }
+    else{ setSyncStatus('Saved ✓ ' + new Date().toLocaleTimeString(), false); }
+  }, 500);
+}
+
+function memberColor(memberId){
+  const idx = DATA.members.findIndex(m=>m.id===memberId);
+  return idx>=0 ? MEMBER_COLORS[idx % MEMBER_COLORS.length] : 'var(--muted)';
+}
+function memberById(id){ return DATA.members.find(m=>m.id===id); }
+function categoryById(id){ return DATA.categories.find(c=>c.id===id); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n){ return '$'+ (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function goToPanel(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.dataset.panel===name));
+  if(name==='dashboard') renderDashboard();
+  if(name==='household') renderHousehold();
+  if(name==='categories') renderCategories();
+  if(name==='transactions') renderTransactions();
+  if(name==='subscriptions') renderSubscriptions();
+  if(name==='investments') renderInvestments();
+  if(name==='reports') renderReportsTab();
+}
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+
+// ---------- month helpers ----------
+function monthsWithData(){
+  const set = new Set();
+  DATA.transactions.forEach(t=>{ if(t.date) set.add(t.date.slice(0,7)); });
+  const now = new Date();
+  set.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+  return Array.from(set).sort().reverse();
+}
+function monthLabel(ym){
+  const [y,m] = ym.split('-');
+  return new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined,{month:'long', year:'numeric'});
+}
+function populateMonthSelect(elId){
+  const el = document.getElementById(elId);
+  const cur = el.value;
+  const months = monthsWithData();
+  el.innerHTML = (elId==='tf_month' ? '<option value="">All months</option>' : '') +
+    months.map(ym=>`<option value="${ym}">${monthLabel(ym)}</option>`).join('');
+  el.value = months.includes(cur) ? cur : (elId==='tf_month' ? '' : months[0]);
+}
+
+// ---------- Household ----------
+function renderHousehold(){
+  const tbody = document.getElementById('householdBody');
+  tbody.innerHTML = DATA.members.map((m,i)=>`
+    <tr>
+      <td><span class="dot" style="background:${MEMBER_COLORS[i % MEMBER_COLORS.length]};"></span></td>
+      <td>${escapeHtml(m.name)}</td>
+      <td>${m.type}</td>
+      <td class="small muted">${escapeHtml(m.notes||'')}</td>
+      <td><button class="secondary sm" onclick="editMember('${m.id}')">Edit</button> <button class="danger" onclick="deleteMember('${m.id}')">Delete</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">No household members yet.</td></tr>';
+}
+function openMemberModal(){ document.getElementById('memberModalTitle').textContent='Add a household member'; document.getElementById('mem_id').value=''; document.getElementById('mem_name').value=''; document.getElementById('mem_type').value='adult'; document.getElementById('mem_notes').value=''; openModal('modal_member'); }
+function editMember(id){ const m = memberById(id); if(!m) return; document.getElementById('memberModalTitle').textContent='Edit household member'; document.getElementById('mem_id').value=m.id; document.getElementById('mem_name').value=m.name; document.getElementById('mem_type').value=m.type; document.getElementById('mem_notes').value=m.notes||''; openModal('modal_member'); }
+function submitMember(){
+  const name = document.getElementById('mem_name').value.trim();
+  if(!name) return;
+  const id = document.getElementById('mem_id').value;
+  const type = document.getElementById('mem_type').value;
+  const notes = document.getElementById('mem_notes').value.trim();
+  if(id){ const m = memberById(id); m.name=name; m.type=type; m.notes=notes; }
+  else{ DATA.members.push({id:'mem_'+uid(), name, type, notes}); }
+  save(); closeModal('modal_member'); renderHousehold(); refreshAllMemberSelects();
+}
+function deleteMember(id){
+  if(!confirm('Delete this household member? Transactions already tagged to them keep their tag but will show as "(removed)".')) return;
+  DATA.members = DATA.members.filter(m=>m.id!==id);
+  save(); renderHousehold(); refreshAllMemberSelects();
+}
+function refreshAllMemberSelects(){
+  populateMemberSelect('txn_member', true);
+  populateMemberSelect('tf_member', true, 'All');
+}
+function populateMemberSelect(elId, includeBlank, blankLabel){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const cur = el.value;
+  el.innerHTML = (includeBlank ? `<option value="">${blankLabel||'Household / unassigned'}</option>` : '') +
+    DATA.members.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+  el.value = cur;
+}
+
+// ---------- Categories ----------
+function renderCategories(){
+  const incBody = document.getElementById('incomeCatBody');
+  const expBody = document.getElementById('expenseCatBody');
+  const rowHtml = c => `
+    <tr>
+      <td>${escapeHtml(c.name)}</td>
+      <td class="right">${fmt(c.monthlyTarget)}</td>
+      <td><span class="status-pill ${c.flex}">${c.flex}</span></td>
+      <td class="small muted">${escapeHtml(c.notes||'')}</td>
+      <td><button class="secondary sm" onclick="editCategory('${c.id}')">Edit</button> <button class="danger" onclick="deleteCategory('${c.id}')">Delete</button></td>
+    </tr>`;
+  incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(rowHtml).join('') || '<tr><td colspan="5" class="empty">No income sources yet.</td></tr>';
+  expBody.innerHTML = DATA.categories.filter(c=>c.kind==='expense').map(rowHtml).join('') || '<tr><td colspan="5" class="empty">No expense categories yet.</td></tr>';
+  populateCategorySelect('tf_category', '', true);
+}
+function openCategoryModal(kind){
+  document.getElementById('categoryModalTitle').textContent = kind==='income' ? 'Add an income source' : 'Add an expense category';
+  document.getElementById('cat_id').value=''; document.getElementById('cat_kind').value=kind;
+  document.getElementById('cat_name').value=''; document.getElementById('cat_target').value=''; document.getElementById('cat_flex').value='estimate'; document.getElementById('cat_notes').value='';
+  openModal('modal_category');
+}
+function editCategory(id){
+  const c = categoryById(id); if(!c) return;
+  document.getElementById('categoryModalTitle').textContent='Edit category';
+  document.getElementById('cat_id').value=c.id; document.getElementById('cat_kind').value=c.kind;
+  document.getElementById('cat_name').value=c.name; document.getElementById('cat_target').value=c.monthlyTarget; document.getElementById('cat_flex').value=c.flex; document.getElementById('cat_notes').value=c.notes||'';
+  openModal('modal_category');
+}
+function submitCategory(){
+  const name = document.getElementById('cat_name').value.trim();
+  if(!name) return;
+  const id = document.getElementById('cat_id').value;
+  const kind = document.getElementById('cat_kind').value;
+  const monthlyTarget = parseFloat(document.getElementById('cat_target').value)||0;
+  const flex = document.getElementById('cat_flex').value;
+  const notes = document.getElementById('cat_notes').value.trim();
+  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.flex=flex; c.notes=notes; }
+  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, flex, notes}); }
+  save(); closeModal('modal_category'); renderCategories();
+}
+function deleteCategory(id){
+  if(!confirm('Delete this category? Transactions already using it keep the reference but will show as "(removed)".')) return;
+  DATA.categories = DATA.categories.filter(c=>c.id!==id);
+  save(); renderCategories();
+}
+function populateCategorySelect(elId, kindFilter, includeAll){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const cur = el.value;
+  let cats = DATA.categories;
+  if(kindFilter) cats = cats.filter(c=>c.kind===kindFilter);
+  el.innerHTML = (includeAll ? '<option value="">All categories</option>' : '') +
+    cats.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}${c.kind==='income'?' (income)':''}</option>`).join('');
+  el.value = cur;
+}
+
+// ---------- Transactions ----------
+function clearTxnFilters(){ document.getElementById('tf_category').value=''; document.getElementById('tf_member').value=''; document.getElementById('tf_month').value=''; renderTransactions(); }
+function renderTransactions(){
+  populateCategorySelect('tf_category', '', true);
+  populateMemberSelect('tf_member', true, 'All');
+  populateMonthSelect('tf_month');
+  const catF = document.getElementById('tf_category').value;
+  const memF = document.getElementById('tf_member').value;
+  const monF = document.getElementById('tf_month').value;
+  let rows = DATA.transactions.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  if(catF) rows = rows.filter(t=>t.categoryId===catF);
+  if(memF) rows = rows.filter(t=>t.memberId===memF);
+  if(monF) rows = rows.filter(t=>(t.date||'').slice(0,7)===monF);
+  const tbody = document.getElementById('txnBody');
+  tbody.innerHTML = rows.map(t=>{
+    const c = categoryById(t.categoryId); const m = t.memberId ? memberById(t.memberId) : null;
+    return `<tr>
+      <td>${t.date||''}</td>
+      <td><span class="status-pill ${t.kind}">${t.kind}</span></td>
+      <td>${c?escapeHtml(c.name):'<span class="muted">(removed)</span>'}</td>
+      <td>${m?escapeHtml(m.name):'<span class="muted">—</span>'}</td>
+      <td>${escapeHtml(t.description||'')}</td>
+      <td class="right">${fmt(t.amount)}</td>
+      <td><button class="secondary sm" onclick="editTxn('${t.id}')">Edit</button> <button class="danger" onclick="deleteTxn('${t.id}')">Del</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('txnEmpty').style.display = rows.length ? 'none' : 'block';
+}
+function openTxnModal(){
+  document.getElementById('txn_id').value='';
+  document.getElementById('txn_date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('txn_kind').value='expense';
+  populateCategorySelect('txn_category','expense',false);
+  populateMemberSelect('txn_member', true);
+  document.getElementById('txn_desc').value=''; document.getElementById('txn_amount').value='';
+  openModal('modal_txn');
+}
+function editTxn(id){
+  const t = DATA.transactions.find(x=>x.id===id); if(!t) return;
+  document.getElementById('txn_id').value=t.id;
+  document.getElementById('txn_date').value=t.date;
+  document.getElementById('txn_kind').value=t.kind;
+  populateCategorySelect('txn_category', t.kind, false);
+  document.getElementById('txn_category').value=t.categoryId;
+  populateMemberSelect('txn_member', true);
+  document.getElementById('txn_member').value=t.memberId||'';
+  document.getElementById('txn_desc').value=t.description||'';
+  document.getElementById('txn_amount').value=t.amount;
+  openModal('modal_txn');
+}
+function submitTxn(){
+  const date = document.getElementById('txn_date').value;
+  const kind = document.getElementById('txn_kind').value;
+  const categoryId = document.getElementById('txn_category').value;
+  const memberId = document.getElementById('txn_member').value || null;
+  const description = document.getElementById('txn_desc').value.trim();
+  const amount = parseFloat(document.getElementById('txn_amount').value)||0;
+  if(!date || !categoryId || !amount){ alert('Date, category, and a non-zero amount are required.'); return; }
+  const id = document.getElementById('txn_id').value;
+  if(id){ const t=DATA.transactions.find(x=>x.id===id); Object.assign(t,{date,kind,categoryId,memberId,description,amount}); }
+  else{ DATA.transactions.push({id:'txn_'+uid(), date, kind, categoryId, memberId, description, amount}); }
+  save(); closeModal('modal_txn'); renderTransactions(); renderDashboard();
+}
+function deleteTxn(id){ DATA.transactions = DATA.transactions.filter(t=>t.id!==id); save(); renderTransactions(); renderDashboard(); }
+function exportTxnCsv(){
+  const rows = [['date','kind','category','person','description','amount']];
+  DATA.transactions.forEach(t=>{
+    const c = categoryById(t.categoryId); const m = t.memberId ? memberById(t.memberId) : null;
+    rows.push([t.date, t.kind, c?c.name:'', m?m.name:'', t.description||'', t.amount]);
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`FamilyBudget_transactions_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+function importTxnCsv(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const lines = String(e.target.result).split(/\r?\n/).filter(l=>l.trim());
+    let added = 0;
+    lines.slice(1).forEach(line=>{
+      const cells = line.match(/(".*?"|[^,]+)(?=,|$)/g)||[];
+      const clean = cells.map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"'));
+      const [date,kind,catName,memName,description,amount] = clean;
+      if(!date || !amount) return;
+      let cat = DATA.categories.find(c=>c.name.toLowerCase()===String(catName||'').toLowerCase());
+      if(!cat){ cat = {id:'cat_'+uid(), name:catName||'Imported', kind: kind==='income'?'income':'expense', monthlyTarget:0, flex:'estimate', notes:'Auto-created on CSV import.'}; DATA.categories.push(cat); }
+      let mem = memName ? DATA.members.find(m=>m.name.toLowerCase()===String(memName).toLowerCase()) : null;
+      DATA.transactions.push({id:'txn_'+uid(), date, kind: kind==='income'?'income':'expense', categoryId:cat.id, memberId: mem?mem.id:null, description:description||'', amount: parseFloat(amount)||0});
+      added++;
+    });
+    save(); renderTransactions(); renderCategories(); renderDashboard();
+    alert(`Imported ${added} transaction(s).`);
+  };
+  reader.readAsText(file);
+}
+
+// ---------- Subscriptions ----------
+function monthlyCostOf(s){ return s.cadence==='yearly' ? (s.amount||0)/12 : (s.amount||0); }
+function renderSubscriptions(){
+  populateCategorySelect('sub_category', 'expense', false);
+  const tbody = document.getElementById('subBody');
+  tbody.innerHTML = DATA.subscriptions.map(s=>{
+    const c = categoryById(s.categoryId);
+    return `<tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td class="right">${fmt(s.amount)}</td>
+      <td>${s.cadence}</td>
+      <td class="right">${fmt(monthlyCostOf(s))}</td>
+      <td>${c?escapeHtml(c.name):'—'}</td>
+      <td>${s.nextDate||'—'}</td>
+      <td>${s.flagged?'<span class="status-pill expense">Worth reviewing</span>':''}</td>
+      <td><button class="secondary sm" onclick="editSub('${s.id}')">Edit</button> <button class="danger" onclick="deleteSub('${s.id}')">Del</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('subEmpty').style.display = DATA.subscriptions.length ? 'none' : 'block';
+  const totalMonthly = DATA.subscriptions.reduce((s,x)=>s+monthlyCostOf(x),0);
+  document.getElementById('subTotalMonthly').textContent = fmt(totalMonthly)+'/mo';
+  const flagged = DATA.subscriptions.filter(s=>s.flagged);
+  document.getElementById('subFlaggedNote').textContent = flagged.length ? `${flagged.length} flagged as worth reviewing: ${flagged.map(s=>s.name).join(', ')}.` : 'Nothing flagged yet.';
+}
+function openSubModal(){
+  document.getElementById('sub_id').value=''; document.getElementById('sub_name').value=''; document.getElementById('sub_amount').value='';
+  document.getElementById('sub_cadence').value='monthly'; populateCategorySelect('sub_category','expense',false);
+  document.getElementById('sub_next').value=''; document.getElementById('sub_flag').checked=false;
+  openModal('modal_sub');
+}
+function editSub(id){
+  const s = DATA.subscriptions.find(x=>x.id===id); if(!s) return;
+  document.getElementById('sub_id').value=s.id; document.getElementById('sub_name').value=s.name; document.getElementById('sub_amount').value=s.amount;
+  document.getElementById('sub_cadence').value=s.cadence; populateCategorySelect('sub_category','expense',false);
+  document.getElementById('sub_category').value=s.categoryId||''; document.getElementById('sub_next').value=s.nextDate||''; document.getElementById('sub_flag').checked=!!s.flagged;
+  openModal('modal_sub');
+}
+function submitSub(){
+  const name = document.getElementById('sub_name').value.trim(); if(!name) return;
+  const id = document.getElementById('sub_id').value;
+  const amount = parseFloat(document.getElementById('sub_amount').value)||0;
+  const cadence = document.getElementById('sub_cadence').value;
+  const categoryId = document.getElementById('sub_category').value;
+  const nextDate = document.getElementById('sub_next').value;
+  const flagged = document.getElementById('sub_flag').checked;
+  if(id){ const s=DATA.subscriptions.find(x=>x.id===id); Object.assign(s,{name,amount,cadence,categoryId,nextDate,flagged}); }
+  else{ DATA.subscriptions.push({id:'sub_'+uid(), name, amount, cadence, categoryId, nextDate, flagged, notes:''}); }
+  save(); closeModal('modal_sub'); renderSubscriptions(); renderDashboard();
+}
+function deleteSub(id){ DATA.subscriptions = DATA.subscriptions.filter(s=>s.id!==id); save(); renderSubscriptions(); renderDashboard(); }
+
+// ---------- Investments ----------
+function investmentById(id){ return DATA.investments.find(i=>i.id===id); }
+function populateOwnerSelect(elId){
+  const el = document.getElementById(elId); if(!el) return;
+  const cur = el.value;
+  el.innerHTML = DATA.members.map(m=>`<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('') + '<option value="Household">Household / joint</option>';
+  el.value = cur || (DATA.members[0] ? DATA.members[0].name : 'Household');
+}
+function renderInvestments(){
+  const tbody = document.getElementById('invBody');
+  const sorted = [...DATA.investments].sort((a,b)=> (b.value||0)-(a.value||0));
+  tbody.innerHTML = sorted.map(i=>`
+    <tr>
+      <td>${escapeHtml(i.institution)}</td>
+      <td>${escapeHtml(i.name)}${i.accountLast4?` <span class="small muted">(...${escapeHtml(i.accountLast4)})</span>`:''}${i.notes?`<div class="small muted">${escapeHtml(i.notes)}</div>`:''}</td>
+      <td>${escapeHtml(i.owner||'')}</td>
+      <td><span class="pill">${escapeHtml(i.kind||'')}</span></td>
+      <td class="right">${fmt(i.value)}</td>
+      <td>${i.asOf||'—'}</td>
+      <td><button class="secondary sm" onclick="editInv('${i.id}')">Edit</button> <button class="danger" onclick="deleteInv('${i.id}')">Del</button></td>
+    </tr>`).join('');
+  document.getElementById('invEmpty').style.display = DATA.investments.length ? 'none' : 'block';
+
+  const total = DATA.investments.reduce((s,i)=>s+(i.value||0),0);
+  const cashTotal = DATA.investments.filter(i=>i.kind==='cash').reduce((s,i)=>s+(i.value||0),0);
+  const brokerageRetirement = DATA.investments.filter(i=>i.kind==='brokerage'||i.kind==='retirement').reduce((s,i)=>s+(i.value||0),0);
+  const total529 = DATA.investments.filter(i=>i.kind==='529').reduce((s,i)=>s+(i.value||0),0);
+  const trumpTotal = DATA.investments.filter(i=>i.kind==='trump').reduce((s,i)=>s+(i.value||0),0);
+  document.getElementById('inv_total').textContent = fmt(total);
+  document.getElementById('inv_cashTotal').textContent = fmt(cashTotal);
+  document.getElementById('inv_cashBrokerage').textContent = fmt(brokerageRetirement);
+  document.getElementById('inv_529total').textContent = fmt(total529);
+  document.getElementById('inv_trumpTotal').textContent = fmt(trumpTotal);
+  const dates = DATA.investments.map(i=>i.asOf).filter(Boolean).sort();
+  document.getElementById('inv_asOf').textContent = dates.length ? `as of ${dates[dates.length-1]} (oldest: ${dates[0]})` : 'as of —';
+}
+function openInvModal(){
+  document.getElementById('invModalTitle').textContent='Add an investment account';
+  document.getElementById('inv_id').value=''; document.getElementById('inv_institution').value=''; document.getElementById('inv_name').value='';
+  document.getElementById('inv_last4').value=''; document.getElementById('inv_kind').value='brokerage';
+  populateOwnerSelect('inv_owner'); document.getElementById('inv_value').value=''; document.getElementById('inv_asof').value=''; document.getElementById('inv_notes').value='';
+  openModal('modal_inv');
+}
+function editInv(id){
+  const i = investmentById(id); if(!i) return;
+  document.getElementById('invModalTitle').textContent='Edit investment account';
+  document.getElementById('inv_id').value=i.id; document.getElementById('inv_institution').value=i.institution; document.getElementById('inv_name').value=i.name;
+  document.getElementById('inv_last4').value=i.accountLast4||''; document.getElementById('inv_kind').value=i.kind;
+  populateOwnerSelect('inv_owner'); document.getElementById('inv_owner').value=i.owner||'Household';
+  document.getElementById('inv_value').value=i.value; document.getElementById('inv_asof').value=i.asOf||''; document.getElementById('inv_notes').value=i.notes||'';
+  openModal('modal_inv');
+}
+function submitInv(){
+  const institution = document.getElementById('inv_institution').value.trim(); if(!institution) return;
+  const name = document.getElementById('inv_name').value.trim(); if(!name) return;
+  const id = document.getElementById('inv_id').value;
+  const accountLast4 = document.getElementById('inv_last4').value.trim();
+  const kind = document.getElementById('inv_kind').value;
+  const owner = document.getElementById('inv_owner').value;
+  const value = parseFloat(document.getElementById('inv_value').value)||0;
+  const asOf = document.getElementById('inv_asof').value;
+  const notes = document.getElementById('inv_notes').value.trim();
+  if(id){ const i=investmentById(id); Object.assign(i,{institution,name,accountLast4,kind,owner,value,asOf,notes}); }
+  else{ DATA.investments.push({id:'inv_'+uid(), institution,name,accountLast4,kind,owner,value,asOf,notes}); }
+  save(); closeModal('modal_inv'); renderInvestments();
+}
+function deleteInv(id){
+  if(!confirm('Delete this investment account from the tracker?')) return;
+  DATA.investments = DATA.investments.filter(i=>i.id!==id); save(); renderInvestments();
+}
+
+// ---------- Dashboard ----------
+function renderDashboard(){
+  populateMonthSelect('db_month');
+  const ym = document.getElementById('db_month').value;
+  const txnsInMonth = DATA.transactions.filter(t=>(t.date||'').slice(0,7)===ym);
+
+  const incomeCats = DATA.categories.filter(c=>c.kind==='income');
+  const expenseCats = DATA.categories.filter(c=>c.kind==='expense');
+  const incomeBudget = incomeCats.reduce((s,c)=>s+(c.monthlyTarget||0),0);
+  const expenseBudget = expenseCats.reduce((s,c)=>s+(c.monthlyTarget||0),0);
+  const incomeActual = txnsInMonth.filter(t=>t.kind==='income').reduce((s,t)=>s+t.amount,0);
+  const expenseActual = txnsInMonth.filter(t=>t.kind==='expense').reduce((s,t)=>s+t.amount,0);
+
+  document.getElementById('db_incomeBudget').textContent = fmt(incomeBudget);
+  document.getElementById('db_incomeActual').textContent = `actual: ${fmt(incomeActual)}`;
+  document.getElementById('db_expenseBudget').textContent = fmt(expenseBudget);
+  document.getElementById('db_expenseActual').textContent = `actual: ${fmt(expenseActual)}`;
+  const balance = incomeActual - expenseActual;
+  const balEl = document.getElementById('db_balance');
+  balEl.textContent = fmt(balance);
+  balEl.style.color = balance>=0 ? 'var(--good)' : 'var(--danger)';
+
+  // Budget vs actual by category (expenses only — the thing worth watching for overspend)
+  const catBarsEl = document.getElementById('db_categoryBars');
+  catBarsEl.innerHTML = expenseCats.map(c=>{
+    const actual = txnsInMonth.filter(t=>t.categoryId===c.id && t.kind==='expense').reduce((s,t)=>s+t.amount,0);
+    const target = c.monthlyTarget||0;
+    const pct = target>0 ? (actual/target*100) : (actual>0 ? 999 : 0);
+    let color = 'var(--good)';
+    if(pct>=100) color='var(--danger)'; else if(pct>=90) color='var(--warn)';
+    const widthPct = Math.min(100, pct);
+    const dashed = c.flex==='estimate' ? 'border:1px dashed var(--muted);' : '';
+    return `<div class="bar-row" title="${escapeHtml(c.name)}: ${fmt(actual)} of ${fmt(target)} budgeted (${target>0?Math.round(pct):0}%)">
+      <div class="bar-label">${escapeHtml(c.name)}</div>
+      <div class="bar-track" style="${dashed}"><div class="bar-fill" style="width:${widthPct}%;background:${color};"></div></div>
+      <div class="bar-amt">${fmt(actual)} / ${fmt(target)}</div>
+    </div>`;
+  }).join('') || '<p class="empty">No expense categories yet.</p>';
+
+  // Spending by member
+  const memberBarsEl = document.getElementById('db_memberBars');
+  const memberLegendEl = document.getElementById('db_memberLegend');
+  const memberTotals = DATA.members.map((m,i)=>({
+    m, color: MEMBER_COLORS[i % MEMBER_COLORS.length],
+    total: txnsInMonth.filter(t=>t.memberId===m.id && t.kind==='expense').reduce((s,t)=>s+t.amount,0)
+  }));
+  const maxTotal = Math.max(1, ...memberTotals.map(x=>x.total));
+  memberBarsEl.innerHTML = memberTotals.map(x=>`
+    <div class="bar-row" title="${escapeHtml(x.m.name)}: ${fmt(x.total)}">
+      <div class="bar-label"><span class="dot" style="background:${x.color};"></span>${escapeHtml(x.m.name)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${x.total/maxTotal*100}%;background:${x.color};"></div></div>
+      <div class="bar-amt">${fmt(x.total)}</div>
+    </div>`).join('') || '<p class="empty">No household members yet.</p>';
+  memberLegendEl.innerHTML = memberTotals.map(x=>`<span><span class="dot" style="background:${x.color};"></span>${escapeHtml(x.m.name)}</span>`).join('');
+
+  // Subscriptions summary
+  const totalMonthlySub = DATA.subscriptions.reduce((s,x)=>s+monthlyCostOf(x),0);
+  const flaggedCount = DATA.subscriptions.filter(s=>s.flagged).length;
+  document.getElementById('db_subsSummary').innerHTML = `
+    <div class="stat-tile" style="margin-bottom:8px;"><div class="stat-label">Total recurring</div><div class="stat-value">${fmt(totalMonthlySub)}/mo</div></div>
+    <p class="small muted" style="margin-bottom:0;">${DATA.subscriptions.length} subscription(s) tracked${flaggedCount?`, ${flaggedCount} flagged for review`:''}. Manage them on the Subscriptions tab.</p>`;
+
+  // Recent transactions
+  const recent = DATA.transactions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8);
+  document.getElementById('db_recentBody').innerHTML = recent.map(t=>{
+    const c = categoryById(t.categoryId); const m = t.memberId ? memberById(t.memberId) : null;
+    return `<tr><td>${t.date}</td><td>${c?escapeHtml(c.name):'—'}</td><td>${m?escapeHtml(m.name):'—'}</td><td>${escapeHtml(t.description||'')}</td><td class="right">${t.kind==='income'?'+':'-'}${fmt(t.amount)}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">No transactions yet — add one from the Transactions tab.</td></tr>';
+}
+
+// ---------- Reports ----------
+function populateReportSelectors(){
+  const yearSel = document.getElementById('r_year');
+  const years = Array.from(new Set(DATA.transactions.map(t=>(t.date||'').slice(0,4)).filter(Boolean)));
+  years.push(String(new Date().getFullYear()));
+  const uniqueYears = Array.from(new Set(years)).sort().reverse();
+  const curY = yearSel.value;
+  yearSel.innerHTML = uniqueYears.map(y=>`<option value="${y}">${y}</option>`).join('');
+  yearSel.value = uniqueYears.includes(curY) ? curY : uniqueYears[0];
+}
+function renderReportsTab(){
+  populateReportSelectors();
+  const year = document.getElementById('r_year').value;
+  const month = document.getElementById('r_month').value;
+  const inRange = t => t.date && t.date.slice(0,4)===year && (!month || t.date.slice(5,7)===month);
+  const monthsInYear = month ? 1 : 12;
+
+  const catBody = document.querySelector('#reportCatTable tbody');
+  catBody.innerHTML = DATA.categories.map(c=>{
+    const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
+    const budgeted = (c.monthlyTarget||0) * monthsInYear;
+    const diff = actual - budgeted;
+    return `<tr><td>${escapeHtml(c.name)}</td><td class="right">${fmt(budgeted)}</td><td class="right">${fmt(actual)}</td><td class="right" style="color:${diff>0 && c.kind==='expense'?'var(--danger)':'var(--good)'};">${diff>=0?'+':''}${fmt(diff)}</td></tr>`;
+  }).join('');
+
+  const memberBody = document.querySelector('#reportMemberTable tbody');
+  memberBody.innerHTML = DATA.members.map(m=>{
+    const total = DATA.transactions.filter(t=>t.memberId===m.id && t.kind==='expense' && inRange(t)).reduce((s,t)=>s+t.amount,0);
+    return `<tr><td>${escapeHtml(m.name)}</td><td class="right">${fmt(total)}</td></tr>`;
+  }).join('');
+}
+function exportReportCsv(){
+  const year = document.getElementById('r_year').value;
+  const month = document.getElementById('r_month').value;
+  const inRange = t => t.date && t.date.slice(0,4)===year && (!month || t.date.slice(5,7)===month);
+  const rows = [['category','kind','budgeted','actual']];
+  const monthsInYear = month ? 1 : 12;
+  DATA.categories.forEach(c=>{
+    const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
+    rows.push([c.name, c.kind, ((c.monthlyTarget||0)*monthsInYear).toFixed(2), actual.toFixed(2)]);
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`FamilyBudget_report_${year}${month?'-'+month:''}.csv`; a.click();
+}
+
+// ---------- Init ----------
+// onSignedIn() (triggered by initAuth() below, after a successful sign-in) calls load() then
+// renders — the app doesn't call load()/renderDashboard() directly at parse time anymore, since
+// there's no DATA to show until the user is authenticated.
+initAuth();
+sb.auth.onAuthStateChange((event) => {
+  if(event === 'SIGNED_OUT'){
+    currentUserId = null;
+    document.getElementById('authOverlay').classList.add('open');
+    document.getElementById('appRoot').style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
