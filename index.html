@@ -205,6 +205,15 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
   #printArea{display:block !important;position:static;width:100%;}
   #printArea *{display:revert !important;}
   #printArea input{border:none !important;background:transparent !important;padding:0 !important;-webkit-appearance:none;appearance:none;}
+  /* The blanket display:revert above resets EVERY element to its tag-default display, which also
+     wipes out the flex layout the letterhead-style header depends on (.inv-head2 puts the sender
+     block and logo side by side; .inv-amount-row puts the "Amount Due" label and value on
+     opposite ends of the same line). Without this, print/PDF export dropped the logo below the
+     sender address and ran "Amount Due (USD)" and the dollar total together on one line. These
+     two selectors are more specific than the plain #printArea * revert (both are #printArea plus
+     a class), so they win and restore the intended flex layout for print. Fixed 2026-08-29.*/
+  #printArea .inv-head2{display:flex !important;}
+  #printArea .inv-meta-box .inv-amount-row{display:flex !important;}
 }
 .auth-overlay{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;}
 .auth-card{width:340px;max-width:90vw;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px;}
@@ -1844,18 +1853,20 @@ function processPendingImports(){
       if(dup){
         notices.push(`Skipped CC transaction (already imported): ${item.description} — $${parseFloat(item.amount).toFixed(2)} on ${item.date}.`);
       } else {
-        let linkedExpenseId = null;
+        let linkedExpenseId = null, matchedExpense = null;
         if(item.linkProjectName){
           const project = DATA.projects.find(p=>(p.name||'').toLowerCase()===item.linkProjectName.toLowerCase());
           const match = project ? DATA.expenses.find(e=>e.projectId===project.id && e.date===item.date && Math.abs(e.amount-parseFloat(item.amount))<0.005) : null;
-          if(match) linkedExpenseId = match.id;
+          if(match){ linkedExpenseId = match.id; matchedExpense = match; }
         }
-        DATA.ccTransactions.push({
+        const newTxn = {
           id: uid(), date: item.date, description: item.description||'', amount: parseFloat(item.amount)||0,
           card: item.card||'', category: item.category||'Other', classification: item.classification||'unknown',
           recurring: item.recurring===true, linkedExpenseId, reviewed: linkedExpenseId?true:false, statementFile: item.statementFile||''
-        });
-        notices.push(`Added CC transaction: ${item.description} — $${parseFloat(item.amount).toFixed(2)} on ${item.date}${linkedExpenseId?' (linked to an existing expense)':''}.`);
+        };
+        DATA.ccTransactions.push(newTxn);
+        if(matchedExpense) applyCcExtractToExpense(newTxn, matchedExpense);
+        notices.push(`Added CC transaction: ${item.description} — $${parseFloat(item.amount).toFixed(2)} on ${item.date}${linkedExpenseId?' (linked to an existing expense, receipt attached)':''}.`);
       }
     } else if(item.kind==='ccTransactionLink'){
       // Links an already-imported CC transaction (matched by card+date+amount) to an already-
@@ -1867,7 +1878,8 @@ function processPendingImports(){
       const exp = project && item.expenseAmount!=null ? DATA.expenses.find(e=>e.projectId===project.id && e.date===item.expenseDate && Math.abs(e.amount-parseFloat(item.expenseAmount))<0.005) : null;
       if(txn && exp){
         txn.linkedExpenseId = exp.id; txn.reviewed = true;
-        notices.push(`Linked CC transaction (${item.date}, $${parseFloat(item.amount).toFixed(2)}) to the expense on ${item.expenseDate} ($${parseFloat(item.expenseAmount).toFixed(2)}).`);
+        applyCcExtractToExpense(txn, exp);
+        notices.push(`Linked CC transaction (${item.date}, $${parseFloat(item.amount).toFixed(2)}) to the expense on ${item.expenseDate} ($${parseFloat(item.expenseAmount).toFixed(2)}) and attached the receipt to it.`);
       } else {
         notices.push(`Could not link CC transaction on ${item.date} ($${item.amount}) — ${txn?'matching expense':'matching CC transaction'} not found. Skipped.`);
       }
@@ -2748,6 +2760,20 @@ function normalizeMerchant(desc){
   s = s.replace(/\s+(SEATTLE WA|SAN JOSE CA|NEW YORK NY|WILMINGTON DE|SAN FRANCISCO CA)$/i, '');
   return s.slice(0, 40);
 }
+// Keeps the two "this expense is CC-backed" mechanisms in sync. DATA.ccTransactions.linkedExpenseId
+// is the internal reconcile ledger (drives the Budget tab review queue and the missing-receipt
+// report) -- but it is NOT what prints on an invoice. Only e.ccExtract (rendered by
+// renderCcExtractCard) shows a "CC Statement Extract" card on the invoice/export. Before
+// 2026-08-29 these could drift apart: an expense could be marked "linked"/reconciled internally
+// while still exporting with no visible receipt, because nothing ever set ccExtract for it. Every
+// code path that sets linkedExpenseId (the ccTransaction/ccTransactionLink chat-import kinds
+// below, and the Budget tab's linkCcToExistingExpense/confirmCcPromote) now calls this too, so a
+// reconciled expense always has its invoice-facing receipt populated at the same time. Fixed
+// 2026-08-29 after this exact drift caused CC-backing receipts to be missing on an export.
+function applyCcExtractToExpense(t, e){
+  if(!t || !e) return;
+  e.ccExtract = { date: t.date, merchant: normalizeMerchant(t.description||'') || (e.description||''), amount: t.amount, card: t.card||'', statementFile: t.statementFile||'' };
+}
 function updateCcTxnField(id, field, value){
   const t = DATA.ccTransactions.find(x=>x.id===id);
   if(!t) return;
@@ -2796,8 +2822,9 @@ function linkCcToExistingExpense(txnId, expenseId){
   if(!t || !e) return;
   t.linkedExpenseId = expenseId;
   t.reviewed = true;
+  applyCcExtractToExpense(t, e);
   save(); renderBudgetTab();
-  showGlobalInfo('Linked to the existing expense — no new expense created.');
+  showGlobalInfo('Linked to the existing expense and attached the receipt — no new expense created.');
 }
 let _ccPromoteTxnId = null;
 function openCcPromoteModal(id){
@@ -2830,9 +2857,10 @@ function confirmCcPromote(){
   });
   t.linkedExpenseId = id;
   t.reviewed = true;
+  applyCcExtractToExpense(t, DATA.expenses.find(e=>e.id===id));
   save(); render(); renderBudgetTab();
   closeCcPromoteModal();
-  showGlobalInfo('Added to Expenses.');
+  showGlobalInfo('Added to Expenses, with the receipt attached.');
 }
 
 // ---------- Close out a year ----------
@@ -4773,13 +4801,13 @@ function renderInvoicePreview(){
   const workDays = times.filter(t=>t.type==='work');
   const travelDays = times.filter(t=>t.type==='travel');
   let ot15Total=0, ot20Total=0, ot15Hours=0, ot20Hours=0;
-  const ot15Ids=[], ot20Ids=[];
+  const ot15Ids=[], ot20Ids=[], ot15Dates=[], ot20Dates=[];
   times.forEach(t=>{
     const b = otBreakdownForEntry(p,t);
     ot15Total += b.ot15; ot20Total += b.ot20;
     ot15Hours += b.h15; ot20Hours += b.h20;
-    if(b.ot15>0) ot15Ids.push(t.id);
-    if(b.ot20>0) ot20Ids.push(t.id);
+    if(b.ot15>0){ ot15Ids.push(t.id); ot15Dates.push(t.date); }
+    if(b.ot20>0){ ot20Ids.push(t.id); ot20Dates.push(t.date); }
   });
 
   // Group by rate only, so every day billed at the same rate condenses into one invoice line —
@@ -4875,12 +4903,14 @@ function renderInvoicePreview(){
     }
   }
   if(ot15Total>0){
-    const plainDesc='Overtime, 1.5x';
+    const ot15DateNote = fmtDateRangeNote(ot15Dates);
+    const plainDesc='Overtime, 1.5x' + (ot15DateNote ? ' — '+escapeHtml(ot15DateNote) : '');
     const linkedDesc = `<span class="line-reorder"><button type="button" class="ghost sm" title="Move up" onclick="moveInvoiceLine('ot15',-1)">▲</button><button type="button" class="ghost sm" title="Move down" onclick="moveInvoiceLine('ot15',1)">▼</button></span> <span class="line-item-link" title="Click to jump to this in the list below" onclick='jumpToPickerItems(${JSON.stringify(ot15Ids)})'>${plainDesc}</span>`;
     pushLine('ot15', lineRow(linkedDesc, ot15Hours, hourlyRate(p)*1.5, ot15Total), lineRow(plainDesc, ot15Hours, hourlyRate(p)*1.5, ot15Total), ot15Total);
   }
   if(ot20Total>0){
-    const plainDesc='Overtime, 2.0x';
+    const ot20DateNote = fmtDateRangeNote(ot20Dates);
+    const plainDesc='Overtime, 2.0x' + (ot20DateNote ? ' — '+escapeHtml(ot20DateNote) : '');
     const linkedDesc = `<span class="line-reorder"><button type="button" class="ghost sm" title="Move up" onclick="moveInvoiceLine('ot20',-1)">▲</button><button type="button" class="ghost sm" title="Move down" onclick="moveInvoiceLine('ot20',1)">▼</button></span> <span class="line-item-link" title="Click to jump to this in the list below" onclick='jumpToPickerItems(${JSON.stringify(ot20Ids)})'>${plainDesc}</span>`;
     pushLine('ot20', lineRow(linkedDesc, ot20Hours, hourlyRate(p)*2, ot20Total), lineRow(plainDesc, ot20Hours, hourlyRate(p)*2, ot20Total), ot20Total);
   }
