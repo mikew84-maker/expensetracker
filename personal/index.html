@@ -184,11 +184,11 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
       <div class="card">
         <div class="toolbar"><div class="section-title" style="margin:0;">Income sources</div><button class="add-trigger-btn sm" onclick="openCategoryModal('income')">+ Add Income Source</button></div>
         <p class="small muted" style="margin-top:-4px;">These mirror the clients on your business tracker — actual amounts fluctuate job to job. Once this is wired up to Supabase, actuals here can pull straight from payments logged over there instead of being re-entered.</p>
-        <div class="table-wrap"><table><thead><tr><th>Source</th><th class="right">Monthly target</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="incomeCatBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Source</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="incomeCatBody"></tbody></table></div>
       </div>
       <div class="card">
         <div class="toolbar"><div class="section-title" style="margin:0;">Expense categories</div><button class="add-trigger-btn sm" onclick="openCategoryModal('expense')">+ Add Expense Category</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Category</th><th class="right">Monthly target</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="expenseCatBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Category</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="expenseCatBody"></tbody></table></div>
       </div>
     </div>
 
@@ -298,11 +298,20 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
     <input type="hidden" id="cat_id"><input type="hidden" id="cat_kind">
     <div class="row"><div class="field"><label>Name</label><input id="cat_name" placeholder="e.g. Groceries"></div></div>
     <div class="row">
-      <div class="field sm"><label>Monthly target</label><input id="cat_target" type="number" step="0.01" placeholder="0.00"></div>
-      <div class="field sm"><label>Type</label><select id="cat_flex"><option value="fixed">Fixed</option><option value="variable">Variable</option><option value="estimate">Estimate</option></select></div>
+      <div class="field sm"><label>Amount</label><input id="cat_target" type="number" step="0.01" placeholder="0.00" oninput="updateCatEquivPreview()"></div>
+      <div class="field sm"><label>Cadence</label><select id="cat_cadence" onchange="updateCatEquivPreview()">
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="yearly">Yearly (one payment/season per year)</option>
+        <option value="onetime">One-time (this year only)</option>
+      </select></div>
     </div>
-    <div class="row"><div class="field"><label>Notes (optional)</label><input id="cat_notes" placeholder="e.g. fluctuates seasonally"></div></div>
+    <div class="row"><div class="field sm"><label>Type</label><select id="cat_flex"><option value="fixed">Fixed</option><option value="variable">Variable</option><option value="estimate">Estimate</option></select></div>
+      <div class="field sm" style="justify-content:flex-end;"><label>&nbsp;</label><p class="small muted" id="cat_equiv_preview" style="margin:0;padding-top:8px;"></p></div>
+    </div>
+    <div class="row"><div class="field"><label>Notes (optional)</label><input id="cat_notes" placeholder="e.g. fluctuates seasonally, or log a rate-change history here"></div></div>
     <button onclick="submitCategory()">Save</button>
+    <p class="small muted" style="margin-top:10px;">Tip: for something that isn't a flat monthly bill — a yearly camp payment, a quarterly premium, a one-off — set the Cadence and enter the actual amount for that period. The tracker converts it to a monthly-equivalent automatically for budget totals, so it stops overstating (or understating) a single month.</p>
   </div>
 </div>
 
@@ -463,7 +472,7 @@ function defaultData(){
       {id:'cat_healthins', name:'Health Insurance', kind:'expense', monthlyTarget:2120, flex:'estimate', notes:'Rate changed mid-year on the sheet — confirm current premium.'},
       {id:'cat_dentalins', name:'Dental Insurance', kind:'expense', monthlyTarget:36, flex:'fixed', notes:''},
       {id:'cat_fkc', name:'Florida Kid Care (Beck/Linc)', kind:'expense', monthlyTarget:262, flex:'estimate', notes:''},
-      {id:'cat_summercamp', name:'Kids Summer Camp', kind:'expense', monthlyTarget:1230, flex:'estimate', notes:'Seasonal, not a real monthly cost.'},
+      {id:'cat_summercamp', name:'Kids Summer Camp', kind:'expense', monthlyTarget:1230, cadence:'yearly', flex:'estimate', notes:'Upfront payment (incl. fees) for ~3 weeks of camp, paid once a year, not monthly. Amount and timeframe may change next summer — update this amount when it does.'},
       {id:'cat_pets', name:'Pets', kind:'expense', monthlyTarget:315, flex:'variable', notes:''},
       {id:'cat_shopping', name:'Shopping', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
       {id:'cat_entertainment', name:'Entertainment', kind:'expense', monthlyTarget:100, flex:'variable', notes:''},
@@ -625,6 +634,34 @@ function populateMemberSelect(elId, includeBlank, blankLabel){
 }
 
 // ---------- Categories ----------
+// A category's stored `monthlyTarget` is the amount for whatever `cadence` it's on (defaults to
+// 'monthly' for backward compatibility with categories that predate this field). These two
+// helpers convert that into a monthly-equivalent (for budget totals) or an annual total (for
+// the yearly Reports tab) so a yearly/quarterly/one-time item stops being treated as if the
+// full amount recurs every single month.
+function categoryCadence(c){ return c.cadence || 'monthly'; }
+function categoryMonthlyEquivalent(c){
+  const v = c.monthlyTarget||0;
+  switch(categoryCadence(c)){
+    case 'yearly': return v/12;
+    case 'quarterly': return v/3;
+    case 'onetime': return v/12; // amortized across the year for budgeting purposes only
+    default: return v;
+  }
+}
+function categoryAnnualAmount(c){
+  const v = c.monthlyTarget||0;
+  switch(categoryCadence(c)){
+    case 'yearly': return v;
+    case 'quarterly': return v*4;
+    case 'onetime': return v;
+    default: return v*12;
+  }
+}
+function cadenceLabel(c){
+  const map = {monthly:'Monthly', quarterly:'Quarterly', yearly:'Yearly', onetime:'One-time'};
+  return map[categoryCadence(c)] || 'Monthly';
+}
 function renderCategories(){
   const incBody = document.getElementById('incomeCatBody');
   const expBody = document.getElementById('expenseCatBody');
@@ -632,25 +669,37 @@ function renderCategories(){
     <tr>
       <td>${escapeHtml(c.name)}</td>
       <td class="right">${fmt(c.monthlyTarget)}</td>
+      <td><span class="status-pill">${cadenceLabel(c)}</span></td>
+      <td class="right">${categoryCadence(c)==='monthly' ? '—' : fmt(categoryMonthlyEquivalent(c))}</td>
       <td><span class="status-pill ${c.flex}">${c.flex}</span></td>
       <td class="small muted">${escapeHtml(c.notes||'')}</td>
       <td><button class="secondary sm" onclick="editCategory('${c.id}')">Edit</button> <button class="danger" onclick="deleteCategory('${c.id}')">Delete</button></td>
     </tr>`;
-  incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(rowHtml).join('') || '<tr><td colspan="5" class="empty">No income sources yet.</td></tr>';
-  expBody.innerHTML = DATA.categories.filter(c=>c.kind==='expense').map(rowHtml).join('') || '<tr><td colspan="5" class="empty">No expense categories yet.</td></tr>';
+  incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No income sources yet.</td></tr>';
+  expBody.innerHTML = DATA.categories.filter(c=>c.kind==='expense').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No expense categories yet.</td></tr>';
   populateCategorySelect('tf_category', '', true);
+}
+function updateCatEquivPreview(){
+  const amt = parseFloat(document.getElementById('cat_target').value)||0;
+  const cadence = document.getElementById('cat_cadence').value;
+  const el = document.getElementById('cat_equiv_preview');
+  if(cadence==='monthly'){ el.textContent=''; return; }
+  const equiv = cadence==='yearly' ? amt/12 : cadence==='quarterly' ? amt/3 : amt/12;
+  el.textContent = `≈ ${fmt(equiv)}/mo equivalent for budget totals`;
 }
 function openCategoryModal(kind){
   document.getElementById('categoryModalTitle').textContent = kind==='income' ? 'Add an income source' : 'Add an expense category';
   document.getElementById('cat_id').value=''; document.getElementById('cat_kind').value=kind;
-  document.getElementById('cat_name').value=''; document.getElementById('cat_target').value=''; document.getElementById('cat_flex').value='estimate'; document.getElementById('cat_notes').value='';
+  document.getElementById('cat_name').value=''; document.getElementById('cat_target').value=''; document.getElementById('cat_cadence').value='monthly'; document.getElementById('cat_flex').value='estimate'; document.getElementById('cat_notes').value='';
+  updateCatEquivPreview();
   openModal('modal_category');
 }
 function editCategory(id){
   const c = categoryById(id); if(!c) return;
   document.getElementById('categoryModalTitle').textContent='Edit category';
   document.getElementById('cat_id').value=c.id; document.getElementById('cat_kind').value=c.kind;
-  document.getElementById('cat_name').value=c.name; document.getElementById('cat_target').value=c.monthlyTarget; document.getElementById('cat_flex').value=c.flex; document.getElementById('cat_notes').value=c.notes||'';
+  document.getElementById('cat_name').value=c.name; document.getElementById('cat_target').value=c.monthlyTarget; document.getElementById('cat_cadence').value=categoryCadence(c); document.getElementById('cat_flex').value=c.flex; document.getElementById('cat_notes').value=c.notes||'';
+  updateCatEquivPreview();
   openModal('modal_category');
 }
 function submitCategory(){
@@ -659,11 +708,12 @@ function submitCategory(){
   const id = document.getElementById('cat_id').value;
   const kind = document.getElementById('cat_kind').value;
   const monthlyTarget = parseFloat(document.getElementById('cat_target').value)||0;
+  const cadence = document.getElementById('cat_cadence').value;
   const flex = document.getElementById('cat_flex').value;
   const notes = document.getElementById('cat_notes').value.trim();
-  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.flex=flex; c.notes=notes; }
-  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, flex, notes}); }
-  save(); closeModal('modal_category'); renderCategories();
+  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.cadence=cadence; c.flex=flex; c.notes=notes; }
+  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, cadence, flex, notes}); }
+  save(); closeModal('modal_category'); renderCategories(); renderDashboard();
 }
 function deleteCategory(id){
   if(!confirm('Delete this category? Transactions already using it keep the reference but will show as "(removed)".')) return;
@@ -908,8 +958,8 @@ function renderDashboard(){
 
   const incomeCats = DATA.categories.filter(c=>c.kind==='income');
   const expenseCats = DATA.categories.filter(c=>c.kind==='expense');
-  const incomeBudget = incomeCats.reduce((s,c)=>s+(c.monthlyTarget||0),0);
-  const expenseBudget = expenseCats.reduce((s,c)=>s+(c.monthlyTarget||0),0);
+  const incomeBudget = incomeCats.reduce((s,c)=>s+categoryMonthlyEquivalent(c),0);
+  const expenseBudget = expenseCats.reduce((s,c)=>s+categoryMonthlyEquivalent(c),0);
   const incomeActual = txnsInMonth.filter(t=>t.kind==='income').reduce((s,t)=>s+t.amount,0);
   const expenseActual = txnsInMonth.filter(t=>t.kind==='expense').reduce((s,t)=>s+t.amount,0);
 
@@ -926,13 +976,14 @@ function renderDashboard(){
   const catBarsEl = document.getElementById('db_categoryBars');
   catBarsEl.innerHTML = expenseCats.map(c=>{
     const actual = txnsInMonth.filter(t=>t.categoryId===c.id && t.kind==='expense').reduce((s,t)=>s+t.amount,0);
-    const target = c.monthlyTarget||0;
+    const target = categoryMonthlyEquivalent(c);
     const pct = target>0 ? (actual/target*100) : (actual>0 ? 999 : 0);
     let color = 'var(--good)';
     if(pct>=100) color='var(--danger)'; else if(pct>=90) color='var(--warn)';
     const widthPct = Math.min(100, pct);
     const dashed = c.flex==='estimate' ? 'border:1px dashed var(--muted);' : '';
-    return `<div class="bar-row" title="${escapeHtml(c.name)}: ${fmt(actual)} of ${fmt(target)} budgeted (${target>0?Math.round(pct):0}%)">
+    const cadenceNote = categoryCadence(c)!=='monthly' ? ` (${cadenceLabel(c)} amount of ${fmt(c.monthlyTarget)}, shown here as a monthly equivalent)` : '';
+    return `<div class="bar-row" title="${escapeHtml(c.name)}: ${fmt(actual)} of ${fmt(target)} budgeted (${target>0?Math.round(pct):0}%)${cadenceNote}">
       <div class="bar-label">${escapeHtml(c.name)}</div>
       <div class="bar-track" style="${dashed}"><div class="bar-fill" style="width:${widthPct}%;background:${color};"></div></div>
       <div class="bar-amt">${fmt(actual)} / ${fmt(target)}</div>
@@ -990,7 +1041,7 @@ function renderReportsTab(){
   const catBody = document.querySelector('#reportCatTable tbody');
   catBody.innerHTML = DATA.categories.map(c=>{
     const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
-    const budgeted = (c.monthlyTarget||0) * monthsInYear;
+    const budgeted = month ? categoryMonthlyEquivalent(c) : categoryAnnualAmount(c);
     const diff = actual - budgeted;
     return `<tr><td>${escapeHtml(c.name)}</td><td class="right">${fmt(budgeted)}</td><td class="right">${fmt(actual)}</td><td class="right" style="color:${diff>0 && c.kind==='expense'?'var(--danger)':'var(--good)'};">${diff>=0?'+':''}${fmt(diff)}</td></tr>`;
   }).join('');
@@ -1005,11 +1056,11 @@ function exportReportCsv(){
   const year = document.getElementById('r_year').value;
   const month = document.getElementById('r_month').value;
   const inRange = t => t.date && t.date.slice(0,4)===year && (!month || t.date.slice(5,7)===month);
-  const rows = [['category','kind','budgeted','actual']];
-  const monthsInYear = month ? 1 : 12;
+  const rows = [['category','kind','cadence','budgeted','actual']];
   DATA.categories.forEach(c=>{
     const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
-    rows.push([c.name, c.kind, ((c.monthlyTarget||0)*monthsInYear).toFixed(2), actual.toFixed(2)]);
+    const budgeted = month ? categoryMonthlyEquivalent(c) : categoryAnnualAmount(c);
+    rows.push([c.name, c.kind, cadenceLabel(c), budgeted.toFixed(2), actual.toFixed(2)]);
   });
   const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
