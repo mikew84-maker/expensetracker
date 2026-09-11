@@ -260,22 +260,46 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 
     <!-- REPORTS -->
     <div class="panel" data-panel="reports">
-      <p class="pagesub">A simple month or year rollup — good for a quick "are we on track" check with your wife.</p>
+      <p class="pagesub">A simple month or year rollup — good for a quick "are we on track" check with your wife. Loosely follows the standard budget-vs-actual approach most financial planners use (income is income, not "budgeted"; expenses get checked against a plan) — not personalized advice, just a sanity-check framework.</p>
       <div class="row">
         <div class="field sm"><label>Year</label><select id="r_year" onchange="renderReportsTab()"></select></div>
         <div class="field sm"><label>Month</label><select id="r_month" onchange="renderReportsTab()"><option value="">Full year</option></select></div>
         <button class="secondary" onclick="exportReportCsv()">Export report as CSV</button>
       </div>
+
+      <div class="card" style="margin-top:4px;">
+        <div class="section-title">Bottom line</div>
+        <div class="grid3" style="grid-template-columns:repeat(3,1fr);">
+          <div class="stat-tile"><div class="stat-label">Actual income</div><div class="stat-value" id="r_incomeActual">$0</div></div>
+          <div class="stat-tile"><div class="stat-label">Actual expenses</div><div class="stat-value" id="r_expenseActual">$0</div></div>
+          <div class="stat-tile"><div class="stat-label">Surplus / deficit</div><div class="stat-value" id="r_surplus">$0</div><div class="stat-sub" id="r_surplusSub"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Income</div>
+        <p class="small muted">What actually came in this period, by source. Income isn't "budgeted" — it's what happened. "Projected" is just each source's typical pace (its annual or monthly target) for comparison, not a spending plan.</p>
+        <div class="table-wrap"><table id="reportIncomeTable"><thead><tr><th>Source</th><th class="right">Projected</th><th class="right">Actual</th><th class="right">Diff</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
       <div class="grid2">
         <div class="card">
-          <div class="section-title">By category</div>
-          <div class="table-wrap"><table id="reportCatTable"><thead><tr><th>Category</th><th class="right">Budgeted</th><th class="right">Actual</th><th class="right">Diff</th></tr></thead><tbody></tbody></table></div>
+          <div class="section-title">Expenses: budget vs. actual</div>
+          <p class="small muted">Red = over budget, green = under. "% of income" shows how much of your actual income that category is eating — a quick gut-check on where the money's really going.</p>
+          <div class="table-wrap"><table id="reportCatTable"><thead><tr><th>Category</th><th class="right">Budgeted</th><th class="right">Actual</th><th class="right">Diff</th><th class="right">% of income</th></tr></thead><tbody></tbody></table></div>
         </div>
         <div class="card">
           <div class="section-title">By person</div>
           <div class="table-wrap"><table id="reportMemberTable"><thead><tr><th>Person</th><th class="right">Spent on them</th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
+
+      <div class="card" id="r_suggestCard" style="display:none;">
+        <div class="section-title">Budget adjustment suggestions</div>
+        <p class="small muted">Not professional financial advice — just flags where actual spending has diverged 20%+ from the budgeted target, so you and your wife can decide whether to adjust the target or rein spending back in.</p>
+        <div id="r_suggestBody"></div>
+      </div>
+
       <div class="card accent" style="margin-top:14px;">
         <div class="section-title">Estimated quarterly taxes (1099 / self-employed income only)</div>
         <p class="small muted">Rough planning number, not tax advice — talk to an accountant for your actual liability. Covers whichever income categories are tagged "1099 / self-employed" (set this on a category via Budget &amp; Categories → Edit); W2 income is excluded since it already has taxes withheld. Uses the selected year above, full year regardless of the month filter.</p>
@@ -283,7 +307,7 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
           <div class="field sm"><label>Estimated tax rate (%)</label><input id="tax_rate" type="number" step="1" min="0" max="60" onchange="updateTaxRate()"></div>
         </div>
         <div class="grid3" style="grid-template-columns:repeat(2,1fr); margin-bottom:10px;">
-          <div class="stat-tile"><div class="stat-label">1099 income this year (actual, or budgeted if no actuals logged yet)</div><div class="stat-value" id="tax_incomeTotal">$0</div></div>
+          <div class="stat-tile"><div class="stat-label">1099 income this year (actual, or projected if no actuals logged yet)</div><div class="stat-value" id="tax_incomeTotal">$0</div></div>
           <div class="stat-tile"><div class="stat-label">Estimated annual liability</div><div class="stat-value" id="tax_liabilityTotal">$0</div></div>
         </div>
         <div class="table-wrap"><table><thead><tr><th>Quarter</th><th>Due date</th><th class="right">Suggested payment</th></tr></thead><tbody id="taxQuarterBody"></tbody></table></div>
@@ -472,12 +496,12 @@ function defaultData(){
     categories: [
       // Income — seeded from the budget sheet's monthly average. Fluctuates with real client work,
       // so these are placeholders until this is wired up to read actuals from the business tracker.
-      {id:'cat_inc_vwlg', name:'Van Wagner - LivGolf', kind:'income', monthlyTarget:15616, flex:'estimate', notes:'Ties to business tracker — fluctuates by event schedule.'},
-      {id:'cat_inc_vwmlb', name:'Van Wagner - MLB', kind:'income', monthlyTarget:7040, flex:'estimate', notes:'Ties to business tracker.'},
+      {id:'cat_inc_vwlg', name:'Van Wagner - LivGolf', kind:'income', monthlyTarget:109315, cadence:'yearly', flex:'estimate', notes:'Real 2026 annual total per the budget CSV ($109,315 across the months LIV Golf events happened, Jan-Aug). Was mistakenly stored as a flat $15,616/mo recurring 12x — that inflated annual income by ~$78k. Cadence fixed 2026-09-11. Ties to business tracker, fluctuates by event schedule.'},
+      {id:'cat_inc_vwmlb', name:'Van Wagner - MLB', kind:'income', monthlyTarget:14080, cadence:'yearly', flex:'estimate', notes:'Real 2026 annual total per the budget CSV ($14,080 across Jul-Aug MLB events). Was mistakenly stored as a flat $7,040/mo recurring 12x. Cadence fixed 2026-09-11. Ties to business tracker.'},
       {id:'cat_inc_pjam', name:'Basketball Travelers (PJam)', kind:'income', monthlyTarget:0, flex:'estimate', notes:''},
-      {id:'cat_inc_yankees', name:'Yankees', kind:'income', monthlyTarget:900, flex:'estimate', notes:''},
-      {id:'cat_inc_promedia', name:'Pro Media Group', kind:'income', monthlyTarget:5210, flex:'estimate', notes:''},
-      {id:'cat_inc_gemstone', name:'Gemstone Media - Orioles', kind:'income', monthlyTarget:1467, flex:'estimate', notes:''},
+      {id:'cat_inc_yankees', name:'Yankees', kind:'income', monthlyTarget:900, cadence:'yearly', flex:'estimate', notes:'One-time $900 payment in Jan 2026 per the budget CSV, not a monthly recurring source. Cadence fixed 2026-09-11 — was being multiplied by 12.'},
+      {id:'cat_inc_promedia', name:'Pro Media Group', kind:'income', monthlyTarget:26050, cadence:'yearly', flex:'estimate', notes:'Real 2026 freelance-era annual total per the budget CSV ($26,050 across Sep-Dec). This is the OLD 1099 freelance arrangement — will need to be replaced with the real bi-weekly W2 deposit amount once Michael confirms his first Pro Media Group paycheck as a full-time employee. Was mistakenly stored as a flat $5,210/mo recurring 12x. Cadence fixed 2026-09-11.'},
+      {id:'cat_inc_gemstone', name:'Gemstone Media - Orioles', kind:'income', monthlyTarget:4400, cadence:'yearly', flex:'estimate', notes:'Real 2026 annual total per the budget CSV ($4,400 across Feb-Mar). Was mistakenly stored as a flat $1,467/mo recurring 12x. Cadence fixed 2026-09-11.'},
       {id:'cat_inc_rays', name:'Rays Severance', kind:'income', monthlyTarget:16930, cadence:'onetime', flex:'estimate', notes:'One-time/winding down severance, NOT an ongoing monthly source — total $16,930 paid across Jan-Mar 2026 (2x $6,772 + $3,386), per the 2026 budget CSV.'},
       {id:'cat_inc_other', name:'Other income', kind:'income', monthlyTarget:880, flex:'variable', notes:''},
       // Expenses
@@ -1123,15 +1147,64 @@ function renderReportsTab(){
   const year = document.getElementById('r_year').value;
   const month = document.getElementById('r_month').value;
   const inRange = t => t.date && t.date.slice(0,4)===year && (!month || t.date.slice(5,7)===month);
-  const monthsInYear = month ? 1 : 12;
 
+  const incomeCats = DATA.categories.filter(c=>c.kind==='income');
+  const expenseCats = DATA.categories.filter(c=>c.kind==='expense');
+
+  // ---- Income: actual is the headline, "projected" is just each source's usual pace ----
+  let totalIncomeActual = 0, totalIncomeProjected = 0;
+  const incomeBody = document.querySelector('#reportIncomeTable tbody');
+  incomeBody.innerHTML = incomeCats.map(c=>{
+    const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
+    const projected = month ? categoryMonthlyEquivalent(c) : categoryAnnualAmount(c);
+    totalIncomeActual += actual; totalIncomeProjected += projected;
+    const diff = actual - projected;
+    // Income running ahead of its usual pace is good (green); behind is worth a glance (amber) —
+    // never red, since falling short of a projection isn't "overspending."
+    const color = diff>=0 ? 'var(--good)' : 'var(--warn)';
+    return `<tr><td>${escapeHtml(c.name)}</td><td class="right">${fmt(projected)}</td><td class="right">${fmt(actual)}</td><td class="right" style="color:${color};">${diff>=0?'+':''}${fmt(diff)}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty">No income categories yet.</td></tr>';
+
+  // ---- Expenses: budget vs actual, % of actual income, and adjustment suggestions ----
+  let totalExpenseActual = 0;
+  const incomeBasis = totalIncomeActual>0 ? totalIncomeActual : totalIncomeProjected;
+  const suggestions = [];
   const catBody = document.querySelector('#reportCatTable tbody');
-  catBody.innerHTML = DATA.categories.map(c=>{
+  catBody.innerHTML = expenseCats.map(c=>{
     const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
     const budgeted = month ? categoryMonthlyEquivalent(c) : categoryAnnualAmount(c);
+    totalExpenseActual += actual;
     const diff = actual - budgeted;
-    return `<tr><td>${escapeHtml(c.name)}</td><td class="right">${fmt(budgeted)}</td><td class="right">${fmt(actual)}</td><td class="right" style="color:${diff>0 && c.kind==='expense'?'var(--danger)':'var(--good)'};">${diff>=0?'+':''}${fmt(diff)}</td></tr>`;
-  }).join('');
+    const color = diff>0 ? 'var(--danger)' : 'var(--good)';
+    const pctOfIncome = incomeBasis>0 ? (actual/incomeBasis*100) : 0;
+    if(budgeted>0 && actual>0 && Math.abs(diff)/budgeted >= 0.2){
+      suggestions.push({name:c.name, budgeted, actual, diff, pct: diff/budgeted*100});
+    }
+    return `<tr><td>${escapeHtml(c.name)}</td><td class="right">${fmt(budgeted)}</td><td class="right">${fmt(actual)}</td><td class="right" style="color:${color};">${diff>=0?'+':''}${fmt(diff)}</td><td class="right">${pctOfIncome.toFixed(1)}%</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">No expense categories yet.</td></tr>';
+
+  // ---- Bottom line: actual income minus actual expenses, the real "are we ok" number ----
+  document.getElementById('r_incomeActual').textContent = fmt(totalIncomeActual);
+  document.getElementById('r_expenseActual').textContent = fmt(totalExpenseActual);
+  const surplus = totalIncomeActual - totalExpenseActual;
+  const surplusEl = document.getElementById('r_surplus');
+  surplusEl.textContent = (surplus>=0?'+':'') + fmt(surplus);
+  surplusEl.style.color = surplus>=0 ? 'var(--good)' : 'var(--danger)';
+  document.getElementById('r_surplusSub').textContent = surplus>=0
+    ? 'Brought in more than you spent this period.'
+    : 'Spent more than you brought in this period — worth a look.';
+
+  // ---- Adjustment suggestions, grounded in actual vs budgeted, framed as non-professional guidance ----
+  const suggestCard = document.getElementById('r_suggestCard');
+  if(suggestions.length){
+    suggestCard.style.display = '';
+    document.getElementById('r_suggestBody').innerHTML = suggestions.map(s=>{
+      const over = s.diff>0;
+      return `<p class="small" style="margin:6px 0;"><strong>${escapeHtml(s.name)}</strong>: budgeted ${fmt(s.budgeted)}, actually ${fmt(s.actual)} (${over?'+':''}${fmt(s.diff)}, ${over?'+':''}${s.pct.toFixed(0)}%). ${over ? `This is pulling ${fmt(Math.abs(s.diff))} more from your income than planned — worth either raising the budget line toward ${fmt(s.actual)} or reining spending back in.` : `Running ${fmt(Math.abs(s.diff))} under budget here — could free that up to save or reallocate.`}</p>`;
+    }).join('');
+  } else {
+    suggestCard.style.display = 'none';
+  }
 
   const memberBody = document.querySelector('#reportMemberTable tbody');
   memberBody.innerHTML = DATA.members.map(m=>{
@@ -1168,7 +1241,7 @@ function renderEstimatedTaxes(year){
   const rate = DATA.settings.estimatedTaxRate||0;
   const liability = incomeTotal * (rate/100);
 
-  document.getElementById('tax_incomeTotal').textContent = fmt(incomeTotal) + (actual1099>0 ? ' (actual)' : ' (budgeted)');
+  document.getElementById('tax_incomeTotal').textContent = fmt(incomeTotal) + (actual1099>0 ? ' (actual)' : ' (projected)');
   document.getElementById('tax_liabilityTotal').textContent = fmt(liability);
 
   const y = parseInt(year,10) || new Date().getFullYear();
@@ -1187,11 +1260,15 @@ function exportReportCsv(){
   const year = document.getElementById('r_year').value;
   const month = document.getElementById('r_month').value;
   const inRange = t => t.date && t.date.slice(0,4)===year && (!month || t.date.slice(5,7)===month);
-  const rows = [['category','kind','cadence','budgeted','actual']];
+  const totalIncomeActual = DATA.categories.filter(c=>c.kind==='income')
+    .reduce((s,c)=>s+DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s2,t)=>s2+t.amount,0), 0);
+  const rows = [['category','kind','cadence','budgeted_or_projected','actual','diff','pct_of_actual_income']];
   DATA.categories.forEach(c=>{
     const actual = DATA.transactions.filter(t=>t.categoryId===c.id && inRange(t)).reduce((s,t)=>s+t.amount,0);
     const budgeted = month ? categoryMonthlyEquivalent(c) : categoryAnnualAmount(c);
-    rows.push([c.name, c.kind, cadenceLabel(c), budgeted.toFixed(2), actual.toFixed(2)]);
+    const diff = actual - budgeted;
+    const pct = (c.kind==='expense' && totalIncomeActual>0) ? (actual/totalIncomeActual*100).toFixed(1) : '';
+    rows.push([c.name, c.kind, cadenceLabel(c), budgeted.toFixed(2), actual.toFixed(2), diff.toFixed(2), pct]);
   });
   const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
