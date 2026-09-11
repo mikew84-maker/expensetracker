@@ -250,6 +250,12 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
         <div class="table-wrap"><table><thead><tr><th>Institution</th><th>Account</th><th>Owner / Beneficiary</th><th>Type</th><th class="right">Value</th><th>As of</th><th></th></tr></thead><tbody id="invBody"></tbody></table></div>
         <div class="empty" id="invEmpty" style="display:none;">No investment accounts logged yet.</div>
       </div>
+      <div class="card">
+        <div class="section-title">Net worth over time</div>
+        <p class="small muted">A snapshot is recorded automatically every time you update an account balance (the old value is kept, not overwritten) — so this fills in on its own as you keep statements current. Update balances whenever a new statement lands for the trend to mean something.</p>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th class="right">Total net worth</th><th class="right">Change</th></tr></thead><tbody id="netWorthBody"></tbody></table></div>
+        <div class="empty" id="netWorthEmpty" style="display:none;">Only one snapshot so far — update an account balance next time a statement comes in to start building the trend.</div>
+      </div>
     </div>
 
     <!-- REPORTS -->
@@ -269,6 +275,18 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
           <div class="section-title">By person</div>
           <div class="table-wrap"><table id="reportMemberTable"><thead><tr><th>Person</th><th class="right">Spent on them</th></tr></thead><tbody></tbody></table></div>
         </div>
+      </div>
+      <div class="card accent" style="margin-top:14px;">
+        <div class="section-title">Estimated quarterly taxes (1099 / self-employed income only)</div>
+        <p class="small muted">Rough planning number, not tax advice — talk to an accountant for your actual liability. Covers whichever income categories are tagged "1099 / self-employed" (set this on a category via Budget &amp; Categories → Edit); W2 income is excluded since it already has taxes withheld. Uses the selected year above, full year regardless of the month filter.</p>
+        <div class="row">
+          <div class="field sm"><label>Estimated tax rate (%)</label><input id="tax_rate" type="number" step="1" min="0" max="60" onchange="updateTaxRate()"></div>
+        </div>
+        <div class="grid3" style="grid-template-columns:repeat(2,1fr); margin-bottom:10px;">
+          <div class="stat-tile"><div class="stat-label">1099 income this year (actual, or budgeted if no actuals logged yet)</div><div class="stat-value" id="tax_incomeTotal">$0</div></div>
+          <div class="stat-tile"><div class="stat-label">Estimated annual liability</div><div class="stat-value" id="tax_liabilityTotal">$0</div></div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Quarter</th><th>Due date</th><th class="right">Suggested payment</th></tr></thead><tbody id="taxQuarterBody"></tbody></table></div>
       </div>
     </div>
 
@@ -308,6 +326,9 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
     </div>
     <div class="row"><div class="field sm"><label>Type</label><select id="cat_flex"><option value="fixed">Fixed</option><option value="variable">Variable</option><option value="estimate">Estimate</option></select></div>
       <div class="field sm" style="justify-content:flex-end;"><label>&nbsp;</label><p class="small muted" id="cat_equiv_preview" style="margin:0;padding-top:8px;"></p></div>
+    </div>
+    <div class="row" id="cat_taxtype_row" style="display:none;">
+      <div class="field sm"><label>Income type (for est. taxes)</label><select id="cat_taxtype"><option value="1099">1099 / self-employed</option><option value="w2">W2 / taxes already withheld</option></select></div>
     </div>
     <div class="row"><div class="field"><label>Notes (optional)</label><input id="cat_notes" placeholder="e.g. fluctuates seasonally, or log a rate-change history here"></div></div>
     <button onclick="submitCategory()">Save</button>
@@ -457,7 +478,7 @@ function defaultData(){
       {id:'cat_inc_yankees', name:'Yankees', kind:'income', monthlyTarget:900, flex:'estimate', notes:''},
       {id:'cat_inc_promedia', name:'Pro Media Group', kind:'income', monthlyTarget:5210, flex:'estimate', notes:''},
       {id:'cat_inc_gemstone', name:'Gemstone Media - Orioles', kind:'income', monthlyTarget:1467, flex:'estimate', notes:''},
-      {id:'cat_inc_rays', name:'Rays Severance', kind:'income', monthlyTarget:5643, flex:'estimate', notes:'One-time/winding down, not ongoing.'},
+      {id:'cat_inc_rays', name:'Rays Severance', kind:'income', monthlyTarget:16930, cadence:'onetime', flex:'estimate', notes:'One-time/winding down severance, NOT an ongoing monthly source — total $16,930 paid across Jan-Mar 2026 (2x $6,772 + $3,386), per the 2026 budget CSV.'},
       {id:'cat_inc_other', name:'Other income', kind:'income', monthlyTarget:880, flex:'variable', notes:''},
       // Expenses
       {id:'cat_mortgage', name:'Mortgage', kind:'expense', monthlyTarget:2080, flex:'fixed', notes:''},
@@ -527,6 +548,9 @@ async function load(){
   if(!DATA.transactions) DATA.transactions = [];
   if(!DATA.subscriptions) DATA.subscriptions = [];
   if(!DATA.investments) DATA.investments = [];
+  if(!DATA.netWorthHistory) DATA.netWorthHistory = [];
+  if(!DATA.settings) DATA.settings = {};
+  if(DATA.settings.estimatedTaxRate===undefined) DATA.settings.estimatedTaxRate = 25;
 }
 function setSyncStatus(msg, isError){
   const el = document.getElementById('syncStatus');
@@ -673,7 +697,7 @@ function renderCategories(){
       <td class="right">${categoryCadence(c)==='monthly' ? '—' : fmt(categoryMonthlyEquivalent(c))}</td>
       <td><span class="status-pill ${c.flex}">${c.flex}</span></td>
       <td class="small muted">${escapeHtml(c.notes||'')}</td>
-      <td><button class="secondary sm" onclick="editCategory('${c.id}')">Edit</button> <button class="danger" onclick="deleteCategory('${c.id}')">Delete</button></td>
+      <td><button class="secondary sm" onclick="openTxnModalForCategory('${c.id}')" title="Log one real ${c.kind==='income'?'deposit':'payment'} against this category">+ ${c.kind==='income'?'Deposit':'Payment'}</button> <button class="secondary sm" onclick="editCategory('${c.id}')">Edit</button> <button class="danger" onclick="deleteCategory('${c.id}')">Delete</button></td>
     </tr>`;
   incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No income sources yet.</td></tr>';
   expBody.innerHTML = DATA.categories.filter(c=>c.kind==='expense').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No expense categories yet.</td></tr>';
@@ -687,10 +711,13 @@ function updateCatEquivPreview(){
   const equiv = cadence==='yearly' ? amt/12 : cadence==='quarterly' ? amt/3 : amt/12;
   el.textContent = `≈ ${fmt(equiv)}/mo equivalent for budget totals`;
 }
+function categoryTaxType(c){ return c.taxType || '1099'; } // default assumption: untagged income is 1099/self-employed until marked otherwise
 function openCategoryModal(kind){
   document.getElementById('categoryModalTitle').textContent = kind==='income' ? 'Add an income source' : 'Add an expense category';
   document.getElementById('cat_id').value=''; document.getElementById('cat_kind').value=kind;
   document.getElementById('cat_name').value=''; document.getElementById('cat_target').value=''; document.getElementById('cat_cadence').value='monthly'; document.getElementById('cat_flex').value='estimate'; document.getElementById('cat_notes').value='';
+  document.getElementById('cat_taxtype').value='1099';
+  document.getElementById('cat_taxtype_row').style.display = kind==='income' ? '' : 'none';
   updateCatEquivPreview();
   openModal('modal_category');
 }
@@ -699,6 +726,8 @@ function editCategory(id){
   document.getElementById('categoryModalTitle').textContent='Edit category';
   document.getElementById('cat_id').value=c.id; document.getElementById('cat_kind').value=c.kind;
   document.getElementById('cat_name').value=c.name; document.getElementById('cat_target').value=c.monthlyTarget; document.getElementById('cat_cadence').value=categoryCadence(c); document.getElementById('cat_flex').value=c.flex; document.getElementById('cat_notes').value=c.notes||'';
+  document.getElementById('cat_taxtype').value=categoryTaxType(c);
+  document.getElementById('cat_taxtype_row').style.display = c.kind==='income' ? '' : 'none';
   updateCatEquivPreview();
   openModal('modal_category');
 }
@@ -711,8 +740,9 @@ function submitCategory(){
   const cadence = document.getElementById('cat_cadence').value;
   const flex = document.getElementById('cat_flex').value;
   const notes = document.getElementById('cat_notes').value.trim();
-  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.cadence=cadence; c.flex=flex; c.notes=notes; }
-  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, cadence, flex, notes}); }
+  const taxType = document.getElementById('cat_taxtype').value;
+  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.cadence=cadence; c.flex=flex; c.notes=notes; if(kind==='income') c.taxType=taxType; }
+  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, cadence, flex, notes, taxType: kind==='income'?taxType:undefined}); }
   save(); closeModal('modal_category'); renderCategories(); renderDashboard();
 }
 function deleteCategory(id){
@@ -764,6 +794,21 @@ function openTxnModal(){
   document.getElementById('txn_date').value = new Date().toISOString().slice(0,10);
   document.getElementById('txn_kind').value='expense';
   populateCategorySelect('txn_category','expense',false);
+  populateMemberSelect('txn_member', true);
+  document.getElementById('txn_desc').value=''; document.getElementById('txn_amount').value='';
+  openModal('modal_txn');
+}
+// Quick-add a single payment/deposit against a specific category, right from the Budget &
+// Categories tab — for anything paid in irregular, one-off amounts (daycare, an installment
+// loan, a variable paycheck) where the point is to log each real payment as it happens so the
+// Reports tab's year-end "actual" total is built from real numbers instead of the budget guess.
+function openTxnModalForCategory(categoryId){
+  const c = categoryById(categoryId); if(!c) return;
+  document.getElementById('txn_id').value='';
+  document.getElementById('txn_date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('txn_kind').value = c.kind;
+  populateCategorySelect('txn_category', c.kind, false);
+  document.getElementById('txn_category').value = c.id;
   populateMemberSelect('txn_member', true);
   document.getElementById('txn_desc').value=''; document.getElementById('txn_amount').value='';
   openModal('modal_txn');
@@ -914,6 +959,23 @@ function renderInvestments(){
   document.getElementById('inv_trumpTotal').textContent = fmt(trumpTotal);
   const dates = DATA.investments.map(i=>i.asOf).filter(Boolean).sort();
   document.getElementById('inv_asOf').textContent = dates.length ? `as of ${dates[dates.length-1]} (oldest: ${dates[0]})` : 'as of —';
+
+  if(!DATA.netWorthHistory) DATA.netWorthHistory=[];
+  if(DATA.netWorthHistory.length===0 && DATA.investments.length){ recordNetWorthSnapshot(); }
+  renderNetWorthHistory();
+}
+function renderNetWorthHistory(){
+  const hist = (DATA.netWorthHistory||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const tbody = document.getElementById('netWorthBody');
+  tbody.innerHTML = hist.slice().reverse().map((h,idx)=>{
+    const revIdx = hist.length-1-idx;
+    const prev = revIdx>0 ? hist[revIdx-1] : null;
+    const change = prev ? h.total-prev.total : null;
+    const changeStr = change==null ? '—' : `${change>=0?'+':''}${fmt(change)}`;
+    const color = change==null ? '' : (change>=0 ? 'color:var(--good);' : 'color:var(--danger);');
+    return `<tr><td>${h.date}</td><td class="right">${fmt(h.total)}</td><td class="right" style="${color}">${changeStr}</td></tr>`;
+  }).join('');
+  document.getElementById('netWorthEmpty').style.display = hist.length>1 ? 'none' : 'block';
 }
 function openInvModal(){
   document.getElementById('invModalTitle').textContent='Add an investment account';
@@ -941,13 +1003,38 @@ function submitInv(){
   const value = parseFloat(document.getElementById('inv_value').value)||0;
   const asOf = document.getElementById('inv_asof').value;
   const notes = document.getElementById('inv_notes').value.trim();
-  if(id){ const i=investmentById(id); Object.assign(i,{institution,name,accountLast4,kind,owner,value,asOf,notes}); }
-  else{ DATA.investments.push({id:'inv_'+uid(), institution,name,accountLast4,kind,owner,value,asOf,notes}); }
+  if(id){
+    const i=investmentById(id);
+    // Keep a running history of prior balances instead of just overwriting — this is what lets
+    // the tracker show a real net-worth trend over time instead of only today's snapshot.
+    if(i.value!==value || i.asOf!==asOf){
+      if(!i.history) i.history=[];
+      i.history.push({value:i.value, asOf:i.asOf});
+      i.history.sort((a,b)=>(a.asOf||'').localeCompare(b.asOf||''));
+    }
+    Object.assign(i,{institution,name,accountLast4,kind,owner,value,asOf,notes});
+  }
+  else{ DATA.investments.push({id:'inv_'+uid(), institution,name,accountLast4,kind,owner,value,asOf,notes,history:[]}); }
+  recordNetWorthSnapshot();
   save(); closeModal('modal_inv'); renderInvestments();
+}
+// Appends {date, total} to DATA.netWorthHistory whenever the total meaningfully changes, so the
+// Investments tab can show real net-worth movement over time rather than a single point-in-time
+// number. Dedupes by day (a same-day re-save updates that day's entry instead of stacking).
+function recordNetWorthSnapshot(){
+  if(!DATA.netWorthHistory) DATA.netWorthHistory=[];
+  const total = DATA.investments.reduce((s,i)=>s+(i.value||0),0);
+  const today = new Date().toISOString().slice(0,10);
+  const last = DATA.netWorthHistory[DATA.netWorthHistory.length-1];
+  if(last && last.date===today){ last.total = total; }
+  else{ DATA.netWorthHistory.push({date:today, total}); }
+  DATA.netWorthHistory.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function deleteInv(id){
   if(!confirm('Delete this investment account from the tracker?')) return;
-  DATA.investments = DATA.investments.filter(i=>i.id!==id); save(); renderInvestments();
+  DATA.investments = DATA.investments.filter(i=>i.id!==id);
+  recordNetWorthSnapshot();
+  save(); renderInvestments();
 }
 
 // ---------- Dashboard ----------
@@ -1051,6 +1138,50 @@ function renderReportsTab(){
     const total = DATA.transactions.filter(t=>t.memberId===m.id && t.kind==='expense' && inRange(t)).reduce((s,t)=>s+t.amount,0);
     return `<tr><td>${escapeHtml(m.name)}</td><td class="right">${fmt(total)}</td></tr>`;
   }).join('');
+
+  renderEstimatedTaxes(year);
+}
+// ---------- Estimated quarterly taxes ----------
+// Simplified planning tool, not a real tax calculation: sums whichever income categories are
+// tagged 1099/self-employed (categoryTaxType==='1099'), applies a flat rate Michael sets, and
+// splits the result across the four standard IRS estimated-payment due dates. W2 income (taxes
+// already withheld by the employer) is excluded on purpose.
+function updateTaxRate(){
+  const rate = parseFloat(document.getElementById('tax_rate').value);
+  if(!DATA.settings) DATA.settings={};
+  DATA.settings.estimatedTaxRate = isNaN(rate) ? 25 : rate;
+  save();
+  renderReportsTab();
+}
+function renderEstimatedTaxes(year){
+  if(!DATA.settings) DATA.settings={};
+  if(DATA.settings.estimatedTaxRate===undefined) DATA.settings.estimatedTaxRate=25;
+  document.getElementById('tax_rate').value = DATA.settings.estimatedTaxRate;
+
+  const inYear = t => t.date && t.date.slice(0,4)===year;
+  const inc1099Cats = DATA.categories.filter(c=>c.kind==='income' && categoryTaxType(c)==='1099');
+  const actual1099 = DATA.transactions.filter(t=>t.kind==='income' && inYear(t) && inc1099Cats.some(c=>c.id===t.categoryId)).reduce((s,t)=>s+t.amount,0);
+  const budgeted1099 = inc1099Cats.reduce((s,c)=>s+categoryAnnualAmount(c),0);
+  // Prefer real logged income once there's meaningful actual data; otherwise fall back to the
+  // budgeted estimate so this isn't just blank before Michael's logged any transactions.
+  const incomeTotal = actual1099>0 ? actual1099 : budgeted1099;
+  const rate = DATA.settings.estimatedTaxRate||0;
+  const liability = incomeTotal * (rate/100);
+
+  document.getElementById('tax_incomeTotal').textContent = fmt(incomeTotal) + (actual1099>0 ? ' (actual)' : ' (budgeted)');
+  document.getElementById('tax_liabilityTotal').textContent = fmt(liability);
+
+  const y = parseInt(year,10) || new Date().getFullYear();
+  const quarters = [
+    {label:'Q1 (Jan – Mar)', due:`April 15, ${y}`},
+    {label:'Q2 (Apr – May)', due:`June 15, ${y}`},
+    {label:'Q3 (Jun – Aug)', due:`September 15, ${y}`},
+    {label:'Q4 (Sep – Dec)', due:`January 15, ${y+1}`}
+  ];
+  const perQuarter = liability/4;
+  document.getElementById('taxQuarterBody').innerHTML = quarters.map(q=>
+    `<tr><td>${q.label}</td><td>${q.due}</td><td class="right">${fmt(perQuarter)}</td></tr>`
+  ).join('');
 }
 function exportReportCsv(){
   const year = document.getElementById('r_year').value;
