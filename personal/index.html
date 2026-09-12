@@ -86,6 +86,17 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 .status-pill.fixed{background:var(--info-soft);color:var(--info);}
 .status-pill.variable{background:var(--purple-soft);color:var(--purple);}
 .status-pill.estimate{background:transparent;color:var(--muted);border:1px dashed var(--line);text-transform:none;font-weight:600;}
+/* ---- Budget & Categories: income vs. bills vs. other, visually distinct ---- */
+.card.income-card{border:2px solid var(--good);background:var(--good-soft);}
+.card.income-card .section-title{color:var(--good);font-size:15px;}
+.card.bills-card{border:2px solid var(--warn);}
+.card.bills-card .section-title{color:var(--warn);}
+.card.other-card{border:2px solid var(--purple);}
+.card.other-card .section-title{color:var(--purple);}
+.cat-table th{background:var(--field-bg);}
+.cat-table td{padding:8px;}
+.cat-table tbody tr:nth-child(even){background:rgba(255,255,255,.02);}
+.cat-table select{min-width:96px;}
 /* ---- Modals ---- */
 .action-modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,11,13,.72);backdrop-filter:blur(2px);z-index:250;align-items:flex-start;justify-content:center;padding:6vh 20px 20px;overflow-y:auto;}
 .action-modal-overlay.open{display:flex;}
@@ -180,25 +191,44 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
 
     <!-- BUDGET & CATEGORIES -->
     <div class="panel" data-panel="categories">
-      <p class="pagesub">Your monthly targets, seeded from the budget sheet you sent. "Fixed" categories don't move month to month; "Variable" categories you expect to change; "Estimate" is your best guess and not something you're tracking closely yet — edit any of these as you get a clearer number.</p>
-      <div class="card">
-        <div class="toolbar"><div class="section-title" style="margin:0;">Income sources</div><button class="add-trigger-btn sm" onclick="openCategoryModal('income')">+ Add Income Source</button></div>
-        <p class="small muted" style="margin-top:-4px;">These mirror the clients on your business tracker — actual amounts fluctuate job to job. Once this is wired up to Supabase, actuals here can pull straight from payments logged over there instead of being re-entered.</p>
-        <div class="table-wrap"><table><thead><tr><th>Source</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="incomeCatBody"></tbody></table></div>
+      <p class="pagesub">Your monthly targets, seeded from the budget sheet you sent. "Fixed" categories don't move month to month; "Variable" categories you expect to change; "Estimate" is your best guess and not something you're tracking closely yet — edit any of these as you get a clearer number. Cadence and Type are editable right in the table now — no need to open Edit just to flip those.</p>
+
+      <div class="card income-card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">💰 INCOME SOURCES</div><button class="add-trigger-btn sm" onclick="openCategoryModal('income')">+ Add Income Source</button></div>
+        <p class="small muted" style="margin-top:-4px;">Everything that brings money IN to the household. These mirror the clients on your business tracker — actual amounts fluctuate job to job.</p>
+        <div class="table-wrap"><table class="cat-table"><thead><tr><th>Source</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Tax</th><th>Notes</th><th></th></tr></thead><tbody id="incomeCatBody"></tbody></table></div>
       </div>
-      <div class="card">
-        <div class="toolbar"><div class="section-title" style="margin:0;">Expense categories</div><button class="add-trigger-btn sm" onclick="openCategoryModal('expense')">+ Add Expense Category</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Category</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="expenseCatBody"></tbody></table></div>
+
+      <div class="card bills-card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">🧾 MONTHLY BILLS &amp; EXPENSES</div><button class="add-trigger-btn sm" onclick="openCategoryModal('expense','bill')">+ Add Bill</button></div>
+        <p class="small muted" style="margin-top:-4px;">The recurring, essential stuff — mortgage, insurance, utilities, loans, subscriptions. Money going OUT on a predictable schedule.</p>
+        <div class="table-wrap"><table class="cat-table"><thead><tr><th>Category</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="expenseCatBody"></tbody></table></div>
+      </div>
+
+      <div class="card other-card">
+        <div class="toolbar"><div class="section-title" style="margin:0;">🎯 OTHER / ONE-TIME EXPENSES</div><button class="add-trigger-btn sm" onclick="openCategoryModal('expense','other')">+ Add Other Expense</button></div>
+        <p class="small muted" style="margin-top:-4px;">Discretionary or irregular spending that isn't a recurring bill — a summer camp payment, a weekend trip, shopping, entertainment. These are still worth budgeting for, just not "bills."</p>
+        <div class="table-wrap"><table class="cat-table"><thead><tr><th>Category</th><th class="right">Amount</th><th>Cadence</th><th class="right">Monthly equiv.</th><th>Type</th><th>Notes</th><th></th></tr></thead><tbody id="otherCatBody"></tbody></table></div>
       </div>
     </div>
 
     <!-- TRANSACTIONS -->
     <div class="panel" data-panel="transactions">
-      <p class="pagesub">Every dollar in or out. Tag a person when it's worth remembering who it was for — Beckett's baseball, Lincoln's dentist, Brooke's glasses — so it rolls up on the Dashboard and in Reports.</p>
+      <p class="pagesub">Every dollar in or out. Tag a person when it's worth remembering who it was for — Beckett's baseball, Lincoln's dentist, Brooke's glasses — so it rolls up on the Dashboard and in Reports. Tag a payment account/card so you can see where your money is actually flowing from.</p>
+      <div class="card">
+        <div class="toolbar">
+          <div class="section-title" style="margin:0;">Payment Accounts &amp; Cards</div>
+          <button class="add-trigger-btn sm" onclick="openPayAcctModal()">+ Add Account/Card</button>
+        </div>
+        <p class="small muted">The checking accounts, cards, and cash you actually pay bills from. Tag these on transactions below so Reports can show what % of spending flows through each one — and, for credit cards, log interest charges here to see if paying bills on plastic for points is costing more than it's worth.</p>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Institution</th><th>Type</th><th>Last 4</th><th class="right">Interest charged (YTD)</th><th>Notes</th><th></th></tr></thead><tbody id="payAcctBody"></tbody></table></div>
+        <div class="empty" id="payAcctEmpty" style="display:none;">No payment accounts logged yet.</div>
+      </div>
       <div class="card compact">
         <div class="row">
           <div class="field sm"><label>Category</label><select id="tf_category" onchange="renderTransactions()"><option value="">All</option></select></div>
           <div class="field sm"><label>Person</label><select id="tf_member" onchange="renderTransactions()"><option value="">All</option></select></div>
+          <div class="field sm"><label>Account</label><select id="tf_payacct" onchange="renderTransactions()"><option value="">All</option></select></div>
           <div class="field sm"><label>Month</label><select id="tf_month" onchange="renderTransactions()"></select></div>
           <button class="ghost sm" style="align-self:flex-end;" onclick="clearTxnFilters()">Clear filters</button>
         </div>
@@ -213,7 +243,7 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
             <button class="add-trigger-btn sm" onclick="openTxnModal()">+ Add Transaction</button>
           </div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Kind</th><th>Category</th><th>Person</th><th>Description</th><th class="right">Amount</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Kind</th><th>Category</th><th>Person</th><th>Account</th><th>Description</th><th class="right">Amount</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div>
         <div class="empty" id="txnEmpty" style="display:none;">No transactions logged yet.</div>
       </div>
     </div>
@@ -294,6 +324,12 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
         </div>
       </div>
 
+      <div class="card">
+        <div class="section-title">By payment account — where the money's actually coming from</div>
+        <p class="small muted">What % of this period's spending ran through each account or card. Untracked = transactions with no account tagged yet — tag more of them (especially from monthly statement scans) for this to get more accurate. "Interest charged" is all-time logged on that card, not scoped to this period — a rough gut-check on whether the points are worth it.</p>
+        <div class="table-wrap"><table id="reportPayAcctTable"><thead><tr><th>Account</th><th>Type</th><th class="right">Spent this period</th><th class="right">% of tracked spend</th><th class="right">Interest charged (all-time)</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
       <div class="card" id="r_suggestCard" style="display:none;">
         <div class="section-title">Budget adjustment suggestions</div>
         <p class="small muted">Not professional financial advice — just flags where actual spending has diverged 20%+ from the budgeted target, so you and your wife can decide whether to adjust the target or rein spending back in.</p>
@@ -354,6 +390,9 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
     <div class="row" id="cat_taxtype_row" style="display:none;">
       <div class="field sm"><label>Income type (for est. taxes)</label><select id="cat_taxtype"><option value="1099">1099 / self-employed</option><option value="w2">W2 / taxes already withheld</option></select></div>
     </div>
+    <div class="row" id="cat_group_row" style="display:none;">
+      <div class="field sm"><label>Group</label><select id="cat_group"><option value="bill">Monthly Bill / Expense</option><option value="other">Other / One-Time Expense</option></select></div>
+    </div>
     <div class="row"><div class="field"><label>Notes (optional)</label><input id="cat_notes" placeholder="e.g. fluctuates seasonally, or log a rate-change history here"></div></div>
     <button onclick="submitCategory()">Save</button>
     <p class="small muted" style="margin-top:10px;">Tip: for something that isn't a flat monthly bill — a yearly camp payment, a quarterly premium, a one-off — set the Cadence and enter the actual amount for that period. The tracker converts it to a monthly-equivalent automatically for budget totals, so it stops overstating (or understating) a single month.</p>
@@ -378,7 +417,43 @@ td select, td input{padding:4px 6px;font-size:12px;min-width:0;}
       <div class="field"><label>Description</label><input id="txn_desc" placeholder="e.g. Beckett baseball registration"></div>
       <div class="field sm"><label>Amount</label><input id="txn_amount" type="number" step="0.01" placeholder="0.00"></div>
     </div>
+    <div class="row"><div class="field"><label>Paid from / to account (optional)</label><select id="txn_payacct"><option value="">Not tracked</option></select></div></div>
     <button onclick="submitTxn()">Save</button>
+  </div>
+</div>
+
+<!-- Payment account modal -->
+<div class="action-modal-overlay" id="modal_payacct" onclick="if(event.target===this) closeModal('modal_payacct')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_payacct')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">💳</span><h3 id="payAcctModalTitle">Add a payment account/card</h3></div>
+    <input type="hidden" id="pa_id">
+    <div class="row">
+      <div class="field"><label>Name</label><input id="pa_name" placeholder="e.g. Capital One Venture"></div>
+      <div class="field"><label>Institution</label><input id="pa_institution" placeholder="e.g. Capital One"></div>
+    </div>
+    <div class="row">
+      <div class="field sm"><label>Type</label><select id="pa_kind"><option value="checking">Checking</option><option value="savings">Savings / high-yield</option><option value="credit_card">Credit card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+      <div class="field sm"><label>Last 4</label><input id="pa_last4" placeholder="e.g. 2930"></div>
+    </div>
+    <div class="row"><div class="field"><label>Notes (optional)</label><input id="pa_notes" placeholder="e.g. used for points, paid off monthly via Found"></div></div>
+    <button onclick="submitPayAcct()">Save</button>
+  </div>
+</div>
+
+<!-- Interest charge modal (credit card accounts only) -->
+<div class="action-modal-overlay" id="modal_interest" onclick="if(event.target===this) closeModal('modal_interest')">
+  <div class="action-modal">
+    <button class="modal-close" onclick="closeModal('modal_interest')">&times;</button>
+    <div class="action-modal-header"><span class="action-modal-icon">📈</span><h3>Log an interest charge</h3></div>
+    <input type="hidden" id="int_acctid">
+    <div class="row">
+      <div class="field sm"><label>Date</label><input id="int_date" type="date"></div>
+      <div class="field sm"><label>Amount</label><input id="int_amount" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="row"><div class="field"><label>Notes (optional)</label><input id="int_notes" placeholder="e.g. carried a balance past the due date"></div></div>
+    <button onclick="submitInterest()">Save</button>
+    <p class="small muted" style="margin-top:10px;">Logging interest here builds a running total per card — check it against the points/rewards value on that same card to see if paying bills on it is actually costing you more than it earns.</p>
   </div>
 </div>
 
@@ -511,25 +586,26 @@ function defaultData(){
       {id:'cat_gingerbread', name:'Gingerbread - Education', kind:'expense', monthlyTarget:880, flex:'fixed', notes:'Pauses over summer.'},
       {id:'cat_groceries', name:'Groceries', kind:'expense', monthlyTarget:400, flex:'estimate', notes:'You flagged this as a rough number, not tracked closely yet.'},
       {id:'cat_gas', name:'Gas', kind:'expense', monthlyTarget:200, flex:'estimate', notes:''},
-      {id:'cat_gym', name:'Gym/Health', kind:'expense', monthlyTarget:45, flex:'variable', notes:''},
-      {id:'cat_home', name:'Home', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
+      {id:'cat_gym', name:'Gym/Health', kind:'expense', monthlyTarget:45, flex:'variable', group:'other', notes:''},
+      {id:'cat_home', name:'Home', kind:'expense', monthlyTarget:0, flex:'variable', group:'other', notes:''},
       {id:'cat_carins', name:'Car Insurance', kind:'expense', monthlyTarget:544, flex:'fixed', notes:''},
-      {id:'cat_healthins', name:'Health Insurance', kind:'expense', monthlyTarget:2120, flex:'estimate', notes:'Rate changed mid-year on the sheet — confirm current premium.'},
-      {id:'cat_dentalins', name:'Dental Insurance', kind:'expense', monthlyTarget:36, flex:'fixed', notes:''},
-      {id:'cat_fkc', name:'Florida Kid Care (Beck/Linc)', kind:'expense', monthlyTarget:262, flex:'estimate', notes:''},
-      {id:'cat_summercamp', name:'Kids Summer Camp', kind:'expense', monthlyTarget:1230, cadence:'yearly', flex:'estimate', notes:'Upfront payment (incl. fees) for ~3 weeks of camp, paid once a year, not monthly. Amount and timeframe may change next summer — update this amount when it does.'},
+      {id:'cat_healthins', name:'Health Insurance', kind:'expense', monthlyTarget:0, flex:'fixed', group:'bill', notes:'Stopped paying freelance marketplace health insurance as of September 2026 — now covered through the full-time PMG role. Was $2,120/mo through August; zeroed out going forward per Michael, 2026-09-11.'},
+      {id:'cat_dentalins', name:'Dental Insurance', kind:'expense', monthlyTarget:0, flex:'fixed', group:'bill', notes:'Stopped paying freelance marketplace dental/vision insurance as of September 2026 — now covered through the full-time PMG role. Was $36/mo through August; zeroed out going forward per Michael, 2026-09-11.'},
+      {id:'cat_fkc', name:'Florida Kid Care (Beck/Linc)', kind:'expense', monthlyTarget:0, flex:'estimate', group:'bill', notes:'Michael confirmed he has not actually paid this since May 2026 — zeroed out retroactively per his 2026-09-11 note. Was $262/mo estimate before that.'},
+      {id:'cat_summercamp', name:'Kids Summer Camp', kind:'expense', monthlyTarget:1230, cadence:'onetime', flex:'estimate', group:'other', notes:'Upfront one-time payment (incl. fees) for ~3 weeks of camp — corrected from "yearly" to "onetime" per Michael, 2026-09-11 (it is not a recurring annual bill, more of a one-off seasonal expense). Amount and timeframe may change next summer — update when it does.'},
       {id:'cat_pets', name:'Pets', kind:'expense', monthlyTarget:315, flex:'variable', notes:''},
-      {id:'cat_shopping', name:'Shopping', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
-      {id:'cat_entertainment', name:'Entertainment', kind:'expense', monthlyTarget:100, flex:'variable', notes:''},
-      {id:'cat_transportation', name:'Transportation', kind:'expense', monthlyTarget:0, flex:'variable', notes:''},
-      {id:'cat_travel', name:'Travel', kind:'expense', monthlyTarget:150, flex:'estimate', notes:''},
+      {id:'cat_shopping', name:'Shopping', kind:'expense', monthlyTarget:0, flex:'variable', group:'other', notes:''},
+      {id:'cat_entertainment', name:'Entertainment', kind:'expense', monthlyTarget:100, flex:'variable', group:'other', notes:''},
+      {id:'cat_transportation', name:'Transportation', kind:'expense', monthlyTarget:0, flex:'variable', group:'other', notes:''},
+      {id:'cat_travel', name:'Travel', kind:'expense', monthlyTarget:150, flex:'estimate', group:'other', notes:'Weekend trips/vacations — a discretionary/one-time expense, not a recurring bill.'},
       {id:'cat_bizsoftware', name:'Business Software (Fresh/Found/Google)', kind:'expense', monthlyTarget:40, flex:'fixed', notes:'Double-check this shouldn’t just live on the business tracker instead.'},
       {id:'cat_utilities', name:'Utilities', kind:'expense', monthlyTarget:225, flex:'fixed', notes:''},
       {id:'cat_cell', name:'Cell Phone', kind:'expense', monthlyTarget:224, flex:'fixed', notes:''},
       {id:'cat_netflix', name:'Netflix', kind:'expense', monthlyTarget:10, flex:'fixed', notes:'Also tracked as a subscription below.'},
       {id:'cat_401k', name:'401K', kind:'expense', monthlyTarget:300, flex:'fixed', notes:''},
       {id:'cat_savings', name:'Savings (Kids 529, Family Wealth)', kind:'expense', monthlyTarget:150, flex:'fixed', notes:''},
-      {id:'cat_othernontracked', name:'Other / random', kind:'expense', monthlyTarget:542, flex:'estimate', notes:'e.g. therapy, birthdays, one-off trips.'}
+      {id:'cat_othernontracked', name:'Other / random', kind:'expense', monthlyTarget:542, flex:'estimate', group:'other', notes:'e.g. therapy, birthdays, one-off trips.'},
+      {id:'cat_capitalone', name:'Capital One Venture Card', kind:'expense', monthlyTarget:2865.28, cadence:'monthly', flex:'variable', group:'bill', notes:'Real Capital One Venture card (World Elite Mastercard ...2930) used to pay monthly bills for rewards points, then paid in full via Found. monthlyTarget is a one-cycle placeholder — see notes in the live data for more.'}
     ],
     transactions: [],
     subscriptions: [
@@ -553,6 +629,18 @@ function defaultData(){
       {id:'inv_trump_beckett', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'2970', kind:'trump', owner:'Beckett', value:1000.00, asOf:'2026-08-28', notes:'$1,000 Pilot Program contribution made 8/28/26 — not posted/settled yet on a statement. Update once it clears.'},
       {id:'inv_trump_lincoln', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'2215', kind:'trump', owner:'Lincoln', value:1000.00, asOf:'2026-08-28', notes:'$1,000 Pilot Program contribution made 8/28/26 — not posted/settled yet on a statement. Update once it clears.'},
       {id:'inv_trump_parker', institution:'Trump Accounts (Robinhood, Trustee)', name:'Trump Account', accountLast4:'8263', kind:'trump', owner:'Parker', value:994.86, asOf:'2026-07-31', notes:'$1,000 Pilot Program contribution, invested in SPDR Portfolio S&P 500 ETF (SPYM); value reflects the 7/31/26 statement.'}
+    ],
+    // The real checking accounts / cards bills actually get paid from, so transactions can be
+    // tagged with where the money came from — added 2026-09-11 per Michael's request to track
+    // "20% comes out of credit union, 40% via Amex" style allocation, and to help spot whether
+    // paying bills on cards for points is costing more in interest than it earns.
+    paymentAccounts: [
+      {id:'pa_uniwyo_checking', name:'UniWyo High Dividend Checking', institution:'UniWyo Fed Credit Union', kind:'checking', last4:'5384', notes:'Main joint checking — most day-to-day spending runs through here.', interestCharges:[]},
+      {id:'pa_uniwyo_checking2', name:'UniWyo Simple Checking', institution:'UniWyo Fed Credit Union', kind:'checking', last4:'2545', notes:'Secondary/pass-through account.', interestCharges:[]},
+      {id:'pa_found', name:'Found', institution:'Found', kind:'checking', last4:'', notes:'High-yield business account — allocates money for taxes right out of deposits; used to pay down cards and cover Home Owner dues.', interestCharges:[]},
+      {id:'pa_capitalone', name:'Capital One Venture', institution:'Capital One', kind:'credit_card', last4:'2930', notes:'World Elite Mastercard, $10K limit — used to pay monthly bills for points, paid in full via Found.', interestCharges:[]},
+      {id:'pa_amex', name:'Amex Delta SkyMiles Gold', institution:'American Express', kind:'credit_card', last4:'71006', notes:'', interestCharges:[]},
+      {id:'pa_cash', name:'Cash / Other', institution:'', kind:'cash', last4:'', notes:'', interestCharges:[]}
     ]
   };
 }
@@ -572,6 +660,8 @@ async function load(){
   if(!DATA.transactions) DATA.transactions = [];
   if(!DATA.subscriptions) DATA.subscriptions = [];
   if(!DATA.investments) DATA.investments = [];
+  if(!DATA.paymentAccounts) DATA.paymentAccounts = [];
+  DATA.paymentAccounts.forEach(a=>{ if(!a.interestCharges) a.interestCharges=[]; });
   if(!DATA.netWorthHistory) DATA.netWorthHistory = [];
   if(!DATA.settings) DATA.settings = {};
   if(DATA.settings.estimatedTaxRate===undefined) DATA.settings.estimatedTaxRate = 25;
@@ -710,21 +800,36 @@ function cadenceLabel(c){
   const map = {monthly:'Monthly', quarterly:'Quarterly', yearly:'Yearly', onetime:'One-time'};
   return map[categoryCadence(c)] || 'Monthly';
 }
+function categoryGroup(c){ return c.group || 'bill'; } // expense categories only; default existing/unset ones to "bill" so nothing silently vanishes from the Bills table
+const CADENCE_OPTIONS = [['monthly','Monthly'],['quarterly','Quarterly'],['yearly','Yearly'],['onetime','One-time']];
+const FLEX_OPTIONS = [['fixed','Fixed'],['variable','Variable'],['estimate','Estimate']];
+function inlineSelect(id, field, options, current){
+  return `<select class="sm" onchange="updateCategoryField('${id}','${field}',this.value)">${options.map(([v,l])=>`<option value="${v}" ${v===current?'selected':''}>${l}</option>`).join('')}</select>`;
+}
+function updateCategoryField(id, field, value){
+  const c = categoryById(id); if(!c) return;
+  c[field] = value;
+  save(); renderCategories(); renderDashboard();
+}
 function renderCategories(){
   const incBody = document.getElementById('incomeCatBody');
-  const expBody = document.getElementById('expenseCatBody');
-  const rowHtml = c => `
+  const billBody = document.getElementById('expenseCatBody');
+  const otherBody = document.getElementById('otherCatBody');
+  const rowHtml = (c, showTax) => `
     <tr>
       <td>${escapeHtml(c.name)}</td>
       <td class="right">${fmt(c.monthlyTarget)}</td>
-      <td><span class="status-pill">${cadenceLabel(c)}</span></td>
+      <td>${inlineSelect(c.id,'cadence',CADENCE_OPTIONS,categoryCadence(c))}</td>
       <td class="right">${categoryCadence(c)==='monthly' ? '—' : fmt(categoryMonthlyEquivalent(c))}</td>
-      <td><span class="status-pill ${c.flex}">${c.flex}</span></td>
+      <td>${inlineSelect(c.id,'flex',FLEX_OPTIONS,c.flex)}</td>
+      ${showTax ? `<td>${inlineSelect(c.id,'taxType',[['1099','1099'],['w2','W2']],categoryTaxType(c))}</td>` : ''}
       <td class="small muted">${escapeHtml(c.notes||'')}</td>
       <td><button class="secondary sm" onclick="openTxnModalForCategory('${c.id}')" title="Log one real ${c.kind==='income'?'deposit':'payment'} against this category">+ ${c.kind==='income'?'Deposit':'Payment'}</button> <button class="secondary sm" onclick="editCategory('${c.id}')">Edit</button> <button class="danger" onclick="deleteCategory('${c.id}')">Delete</button></td>
     </tr>`;
-  incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No income sources yet.</td></tr>';
-  expBody.innerHTML = DATA.categories.filter(c=>c.kind==='expense').map(rowHtml).join('') || '<tr><td colspan="7" class="empty">No expense categories yet.</td></tr>';
+  incBody.innerHTML = DATA.categories.filter(c=>c.kind==='income').map(c=>rowHtml(c,true)).join('') || '<tr><td colspan="8" class="empty">No income sources yet.</td></tr>';
+  const expenses = DATA.categories.filter(c=>c.kind==='expense');
+  billBody.innerHTML = expenses.filter(c=>categoryGroup(c)==='bill').map(c=>rowHtml(c,false)).join('') || '<tr><td colspan="7" class="empty">No monthly bills yet.</td></tr>';
+  otherBody.innerHTML = expenses.filter(c=>categoryGroup(c)==='other').map(c=>rowHtml(c,false)).join('') || '<tr><td colspan="7" class="empty">No other/one-time expenses yet.</td></tr>';
   populateCategorySelect('tf_category', '', true);
 }
 function updateCatEquivPreview(){
@@ -736,12 +841,14 @@ function updateCatEquivPreview(){
   el.textContent = `≈ ${fmt(equiv)}/mo equivalent for budget totals`;
 }
 function categoryTaxType(c){ return c.taxType || '1099'; } // default assumption: untagged income is 1099/self-employed until marked otherwise
-function openCategoryModal(kind){
+function openCategoryModal(kind, group){
   document.getElementById('categoryModalTitle').textContent = kind==='income' ? 'Add an income source' : 'Add an expense category';
   document.getElementById('cat_id').value=''; document.getElementById('cat_kind').value=kind;
   document.getElementById('cat_name').value=''; document.getElementById('cat_target').value=''; document.getElementById('cat_cadence').value='monthly'; document.getElementById('cat_flex').value='estimate'; document.getElementById('cat_notes').value='';
   document.getElementById('cat_taxtype').value='1099';
+  document.getElementById('cat_group').value = group || 'bill';
   document.getElementById('cat_taxtype_row').style.display = kind==='income' ? '' : 'none';
+  document.getElementById('cat_group_row').style.display = kind==='expense' ? '' : 'none';
   updateCatEquivPreview();
   openModal('modal_category');
 }
@@ -751,7 +858,9 @@ function editCategory(id){
   document.getElementById('cat_id').value=c.id; document.getElementById('cat_kind').value=c.kind;
   document.getElementById('cat_name').value=c.name; document.getElementById('cat_target').value=c.monthlyTarget; document.getElementById('cat_cadence').value=categoryCadence(c); document.getElementById('cat_flex').value=c.flex; document.getElementById('cat_notes').value=c.notes||'';
   document.getElementById('cat_taxtype').value=categoryTaxType(c);
+  document.getElementById('cat_group').value = categoryGroup(c);
   document.getElementById('cat_taxtype_row').style.display = c.kind==='income' ? '' : 'none';
+  document.getElementById('cat_group_row').style.display = c.kind==='expense' ? '' : 'none';
   updateCatEquivPreview();
   openModal('modal_category');
 }
@@ -765,14 +874,89 @@ function submitCategory(){
   const flex = document.getElementById('cat_flex').value;
   const notes = document.getElementById('cat_notes').value.trim();
   const taxType = document.getElementById('cat_taxtype').value;
-  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.cadence=cadence; c.flex=flex; c.notes=notes; if(kind==='income') c.taxType=taxType; }
-  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, cadence, flex, notes, taxType: kind==='income'?taxType:undefined}); }
+  const group = document.getElementById('cat_group').value;
+  if(id){ const c=categoryById(id); c.name=name; c.monthlyTarget=monthlyTarget; c.cadence=cadence; c.flex=flex; c.notes=notes; if(kind==='income') c.taxType=taxType; if(kind==='expense') c.group=group; }
+  else{ DATA.categories.push({id:'cat_'+uid(), name, kind, monthlyTarget, cadence, flex, notes, taxType: kind==='income'?taxType:undefined, group: kind==='expense'?group:undefined}); }
   save(); closeModal('modal_category'); renderCategories(); renderDashboard();
 }
 function deleteCategory(id){
   if(!confirm('Delete this category? Transactions already using it keep the reference but will show as "(removed)".')) return;
   DATA.categories = DATA.categories.filter(c=>c.id!==id);
   save(); renderCategories();
+}
+// ---------- Payment Accounts (which checking account / card a bill was actually paid from) ----------
+function paymentAccountById(id){ return (DATA.paymentAccounts||[]).find(a=>a.id===id); }
+function payAcctKindLabel(k){ return {checking:'Checking',savings:'Savings / high-yield',credit_card:'Credit card',cash:'Cash',other:'Other'}[k] || k; }
+function payAcctInterestTotal(a){ return (a.interestCharges||[]).reduce((s,c)=>s+(c.amount||0),0); }
+function populatePaymentAccountSelect(elId, includeBlank, blankLabel){
+  const el = document.getElementById(elId); if(!el) return;
+  const cur = el.value;
+  el.innerHTML = (includeBlank ? `<option value="">${blankLabel||'Not tracked'}</option>` : '') +
+    (DATA.paymentAccounts||[]).map(a=>`<option value="${a.id}">${escapeHtml(a.name)}${a.last4?` (...${escapeHtml(a.last4)})`:''}</option>`).join('');
+  el.value = cur;
+}
+function renderPaymentAccounts(){
+  const tbody = document.getElementById('payAcctBody'); if(!tbody) return;
+  const accts = DATA.paymentAccounts||[];
+  tbody.innerHTML = accts.map(a=>`
+    <tr>
+      <td>${escapeHtml(a.name)}</td>
+      <td>${escapeHtml(a.institution||'')}</td>
+      <td><span class="pill">${escapeHtml(payAcctKindLabel(a.kind))}</span></td>
+      <td>${a.last4?`...${escapeHtml(a.last4)}`:'—'}</td>
+      <td class="right">${a.kind==='credit_card' ? fmt(payAcctInterestTotal(a)) : '—'}</td>
+      <td class="small muted">${escapeHtml(a.notes||'')}</td>
+      <td>${a.kind==='credit_card' ? `<button class="secondary sm" onclick="openInterestModal('${a.id}')" title="Log an interest charge on this card">+ Interest</button> ` : ''}<button class="secondary sm" onclick="editPayAcct('${a.id}')">Edit</button> <button class="danger" onclick="deletePayAcct('${a.id}')">Del</button></td>
+    </tr>`).join('');
+  document.getElementById('payAcctEmpty').style.display = accts.length ? 'none' : 'block';
+  populatePaymentAccountSelect('tf_payacct', true, 'All');
+  populatePaymentAccountSelect('txn_payacct', true, 'Not tracked');
+}
+function openPayAcctModal(){
+  document.getElementById('payAcctModalTitle').textContent='Add a payment account/card';
+  document.getElementById('pa_id').value=''; document.getElementById('pa_name').value=''; document.getElementById('pa_institution').value='';
+  document.getElementById('pa_kind').value='checking'; document.getElementById('pa_last4').value=''; document.getElementById('pa_notes').value='';
+  openModal('modal_payacct');
+}
+function editPayAcct(id){
+  const a = paymentAccountById(id); if(!a) return;
+  document.getElementById('payAcctModalTitle').textContent='Edit payment account/card';
+  document.getElementById('pa_id').value=a.id; document.getElementById('pa_name').value=a.name; document.getElementById('pa_institution').value=a.institution||'';
+  document.getElementById('pa_kind').value=a.kind; document.getElementById('pa_last4').value=a.last4||''; document.getElementById('pa_notes').value=a.notes||'';
+  openModal('modal_payacct');
+}
+function submitPayAcct(){
+  const name = document.getElementById('pa_name').value.trim(); if(!name) return;
+  const id = document.getElementById('pa_id').value;
+  const institution = document.getElementById('pa_institution').value.trim();
+  const kind = document.getElementById('pa_kind').value;
+  const last4 = document.getElementById('pa_last4').value.trim();
+  const notes = document.getElementById('pa_notes').value.trim();
+  if(id){ const a=paymentAccountById(id); Object.assign(a,{name,institution,kind,last4,notes}); }
+  else{ DATA.paymentAccounts.push({id:'pa_'+uid(), name,institution,kind,last4,notes,interestCharges:[]}); }
+  save(); closeModal('modal_payacct'); renderPaymentAccounts(); renderTransactions();
+}
+function deletePayAcct(id){
+  if(!confirm('Delete this payment account/card? Transactions already tagged to it keep the tag but will show as "(removed)".')) return;
+  DATA.paymentAccounts = DATA.paymentAccounts.filter(a=>a.id!==id);
+  save(); renderPaymentAccounts(); renderTransactions();
+}
+function openInterestModal(acctId){
+  document.getElementById('int_acctid').value = acctId;
+  document.getElementById('int_date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('int_amount').value=''; document.getElementById('int_notes').value='';
+  openModal('modal_interest');
+}
+function submitInterest(){
+  const acctId = document.getElementById('int_acctid').value;
+  const a = paymentAccountById(acctId); if(!a) return;
+  const date = document.getElementById('int_date').value;
+  const amount = parseFloat(document.getElementById('int_amount').value)||0;
+  const notes = document.getElementById('int_notes').value.trim();
+  if(!date || !amount){ alert('Date and a non-zero amount are required.'); return; }
+  if(!a.interestCharges) a.interestCharges=[];
+  a.interestCharges.push({id:'int_'+uid(), date, amount, notes});
+  save(); closeModal('modal_interest'); renderPaymentAccounts();
 }
 function populateCategorySelect(elId, kindFilter, includeAll){
   const el = document.getElementById(elId);
@@ -786,26 +970,32 @@ function populateCategorySelect(elId, kindFilter, includeAll){
 }
 
 // ---------- Transactions ----------
-function clearTxnFilters(){ document.getElementById('tf_category').value=''; document.getElementById('tf_member').value=''; document.getElementById('tf_month').value=''; renderTransactions(); }
+function clearTxnFilters(){ document.getElementById('tf_category').value=''; document.getElementById('tf_member').value=''; document.getElementById('tf_payacct').value=''; document.getElementById('tf_month').value=''; renderTransactions(); }
 function renderTransactions(){
+  renderPaymentAccounts();
   populateCategorySelect('tf_category', '', true);
   populateMemberSelect('tf_member', true, 'All');
   populateMonthSelect('tf_month');
   const catF = document.getElementById('tf_category').value;
   const memF = document.getElementById('tf_member').value;
+  const acctF = document.getElementById('tf_payacct').value;
   const monF = document.getElementById('tf_month').value;
   let rows = DATA.transactions.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   if(catF) rows = rows.filter(t=>t.categoryId===catF);
   if(memF) rows = rows.filter(t=>t.memberId===memF);
+  if(acctF) rows = rows.filter(t=>t.paymentAccountId===acctF);
   if(monF) rows = rows.filter(t=>(t.date||'').slice(0,7)===monF);
   const tbody = document.getElementById('txnBody');
   tbody.innerHTML = rows.map(t=>{
     const c = categoryById(t.categoryId); const m = t.memberId ? memberById(t.memberId) : null;
+    const acct = t.paymentAccountId ? paymentAccountById(t.paymentAccountId) : null;
+    const acctLabel = t.paymentAccountId ? (acct ? escapeHtml(acct.name) : '<span class="muted">(removed)</span>') : '<span class="muted">—</span>';
     return `<tr>
       <td>${t.date||''}</td>
       <td><span class="status-pill ${t.kind}">${t.kind}</span></td>
       <td>${c?escapeHtml(c.name):'<span class="muted">(removed)</span>'}</td>
       <td>${m?escapeHtml(m.name):'<span class="muted">—</span>'}</td>
+      <td>${acctLabel}</td>
       <td>${escapeHtml(t.description||'')}</td>
       <td class="right">${fmt(t.amount)}</td>
       <td><button class="secondary sm" onclick="editTxn('${t.id}')">Edit</button> <button class="danger" onclick="deleteTxn('${t.id}')">Del</button></td>
@@ -819,6 +1009,8 @@ function openTxnModal(){
   document.getElementById('txn_kind').value='expense';
   populateCategorySelect('txn_category','expense',false);
   populateMemberSelect('txn_member', true);
+  populatePaymentAccountSelect('txn_payacct', true, 'Not tracked');
+  document.getElementById('txn_payacct').value='';
   document.getElementById('txn_desc').value=''; document.getElementById('txn_amount').value='';
   openModal('modal_txn');
 }
@@ -834,6 +1026,8 @@ function openTxnModalForCategory(categoryId){
   populateCategorySelect('txn_category', c.kind, false);
   document.getElementById('txn_category').value = c.id;
   populateMemberSelect('txn_member', true);
+  populatePaymentAccountSelect('txn_payacct', true, 'Not tracked');
+  document.getElementById('txn_payacct').value='';
   document.getElementById('txn_desc').value=''; document.getElementById('txn_amount').value='';
   openModal('modal_txn');
 }
@@ -846,6 +1040,8 @@ function editTxn(id){
   document.getElementById('txn_category').value=t.categoryId;
   populateMemberSelect('txn_member', true);
   document.getElementById('txn_member').value=t.memberId||'';
+  populatePaymentAccountSelect('txn_payacct', true, 'Not tracked');
+  document.getElementById('txn_payacct').value=t.paymentAccountId||'';
   document.getElementById('txn_desc').value=t.description||'';
   document.getElementById('txn_amount').value=t.amount;
   openModal('modal_txn');
@@ -855,20 +1051,22 @@ function submitTxn(){
   const kind = document.getElementById('txn_kind').value;
   const categoryId = document.getElementById('txn_category').value;
   const memberId = document.getElementById('txn_member').value || null;
+  const paymentAccountId = document.getElementById('txn_payacct').value || null;
   const description = document.getElementById('txn_desc').value.trim();
   const amount = parseFloat(document.getElementById('txn_amount').value)||0;
   if(!date || !categoryId || !amount){ alert('Date, category, and a non-zero amount are required.'); return; }
   const id = document.getElementById('txn_id').value;
-  if(id){ const t=DATA.transactions.find(x=>x.id===id); Object.assign(t,{date,kind,categoryId,memberId,description,amount}); }
-  else{ DATA.transactions.push({id:'txn_'+uid(), date, kind, categoryId, memberId, description, amount}); }
+  if(id){ const t=DATA.transactions.find(x=>x.id===id); Object.assign(t,{date,kind,categoryId,memberId,paymentAccountId,description,amount}); }
+  else{ DATA.transactions.push({id:'txn_'+uid(), date, kind, categoryId, memberId, paymentAccountId, description, amount}); }
   save(); closeModal('modal_txn'); renderTransactions(); renderDashboard();
 }
 function deleteTxn(id){ DATA.transactions = DATA.transactions.filter(t=>t.id!==id); save(); renderTransactions(); renderDashboard(); }
 function exportTxnCsv(){
-  const rows = [['date','kind','category','person','description','amount']];
+  const rows = [['date','kind','category','person','account','description','amount']];
   DATA.transactions.forEach(t=>{
     const c = categoryById(t.categoryId); const m = t.memberId ? memberById(t.memberId) : null;
-    rows.push([t.date, t.kind, c?c.name:'', m?m.name:'', t.description||'', t.amount]);
+    const a = t.paymentAccountId ? paymentAccountById(t.paymentAccountId) : null;
+    rows.push([t.date, t.kind, c?c.name:'', m?m.name:'', a?a.name:'', t.description||'', t.amount]);
   });
   const csv = rows.map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
@@ -883,12 +1081,16 @@ function importTxnCsv(input){
     lines.slice(1).forEach(line=>{
       const cells = line.match(/(".*?"|[^,]+)(?=,|$)/g)||[];
       const clean = cells.map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"'));
-      const [date,kind,catName,memName,description,amount] = clean;
+      // Older exports (pre payment-account field) only have 6 columns; detect and shift so those
+      // still import correctly instead of misreading description/amount into the wrong fields.
+      let [date,kind,catName,memName,acctName,description,amount] = clean;
+      if(clean.length===6){ [date,kind,catName,memName,description,amount] = clean; acctName=''; }
       if(!date || !amount) return;
       let cat = DATA.categories.find(c=>c.name.toLowerCase()===String(catName||'').toLowerCase());
       if(!cat){ cat = {id:'cat_'+uid(), name:catName||'Imported', kind: kind==='income'?'income':'expense', monthlyTarget:0, flex:'estimate', notes:'Auto-created on CSV import.'}; DATA.categories.push(cat); }
       let mem = memName ? DATA.members.find(m=>m.name.toLowerCase()===String(memName).toLowerCase()) : null;
-      DATA.transactions.push({id:'txn_'+uid(), date, kind: kind==='income'?'income':'expense', categoryId:cat.id, memberId: mem?mem.id:null, description:description||'', amount: parseFloat(amount)||0});
+      let acct = acctName ? (DATA.paymentAccounts||[]).find(a=>a.name.toLowerCase()===String(acctName).toLowerCase()) : null;
+      DATA.transactions.push({id:'txn_'+uid(), date, kind: kind==='income'?'income':'expense', categoryId:cat.id, memberId: mem?mem.id:null, paymentAccountId: acct?acct.id:null, description:description||'', amount: parseFloat(amount)||0});
       added++;
     });
     save(); renderTransactions(); renderCategories(); renderDashboard();
@@ -1212,7 +1414,28 @@ function renderReportsTab(){
     return `<tr><td>${escapeHtml(m.name)}</td><td class="right">${fmt(total)}</td></tr>`;
   }).join('');
 
+  renderPaymentAccountReport(inRange);
   renderEstimatedTaxes(year);
+}
+// ---------- By payment account report ----------
+// Shows what % of tracked spending flows through each checking account/card this period, so
+// Michael can see "20% comes out of credit union, 40% via Amex" the way he asked, plus an
+// all-time interest-charged total per card as a rough check on whether the points are worth it.
+function renderPaymentAccountReport(inRange){
+  const tbody = document.querySelector('#reportPayAcctTable tbody');
+  if(!tbody) return;
+  const expenseTxns = DATA.transactions.filter(t=>t.kind==='expense' && inRange(t));
+  const totalExpense = expenseTxns.reduce((s,t)=>s+t.amount,0);
+  const rows = (DATA.paymentAccounts||[]).map(a=>{
+    const spent = expenseTxns.filter(t=>t.paymentAccountId===a.id).reduce((s,t)=>s+t.amount,0);
+    return {name:a.name, kind:payAcctKindLabel(a.kind), spent, interest: a.kind==='credit_card' ? payAcctInterestTotal(a) : null};
+  }).filter(r=>r.spent>0 || r.interest);
+  const untracked = expenseTxns.filter(t=>!t.paymentAccountId).reduce((s,t)=>s+t.amount,0);
+  if(untracked>0) rows.push({name:'Untracked', kind:'—', spent:untracked, interest:null});
+  tbody.innerHTML = rows.map(r=>{
+    const pct = totalExpense>0 ? (r.spent/totalExpense*100) : 0;
+    return `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.kind)}</td><td class="right">${fmt(r.spent)}</td><td class="right">${pct.toFixed(1)}%</td><td class="right">${r.interest==null?'—':fmt(r.interest)}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">No transactions tagged with an account yet this period.</td></tr>';
 }
 // ---------- Estimated quarterly taxes ----------
 // Simplified planning tool, not a real tax calculation: sums whichever income categories are
